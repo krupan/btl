@@ -1,181 +1,193 @@
-class ExampleTxnBase implements btl::Transaction;
-    string my_type;
-    string name;
-    int id;
-    function new();
-        name = "txn base";
-        id = $urandom;
-    endfunction
+package tb;
 
-    function string sprint();
-        return $sformatf("id: 0x%0x, type: %s", id, my_type);
-    endfunction
-endclass
+    class ExampleTxnBase implements btl::Transaction;
+        string my_type;
+        string name;
+        int id;
+        function new();
+            name = "txn base";
+            id = $urandom;
+        endfunction
 
-class TxnLowLevel extends ExampleTxnBase;
-    function new();
-        super.new();
-        my_type = "low level";
-    endfunction
-endclass
+        function string sprint();
+            return $sformatf("id: 0x%0x, type: %s", id, my_type);
+        endfunction
+    endclass
 
-class TxnMidLevel extends ExampleTxnBase;
-    function new();
-        super.new();
-        my_type = "mid level";
-    endfunction
-endclass
+    class TxnLowLevel extends ExampleTxnBase;
+        function new();
+            super.new();
+            my_type = "low level";
+        endfunction
+    endclass
 
-class TxnHighLevel extends ExampleTxnBase;
-    function new();
-        super.new();
-        my_type = "high level";
-    endfunction
-endclass
+    class TxnMidLevel extends ExampleTxnBase;
+        function new();
+            super.new();
+            my_type = "mid level";
+        endfunction
+    endclass
 
-// Produces and Consumes TxnLowLevel
-class LowLevel implements btl::Component, btl::Subscriber, btl::Producer;
-    btl::SubscriberList subscribers;
-    btl::TxnMailbox txns_in;
+    class TxnHighLevel extends ExampleTxnBase;
+        function new();
+            super.new();
+            my_type = "high level";
+        endfunction
+    endclass
 
-    function void add_subscriber(btl::Subscriber subscriber);
-        subscribers.push_back(subscriber);
-    endfunction
+    // Produces and Consumes TxnLowLevel
+    class LowLevel implements btl::Component, btl::Subscriber, btl::Producer;
+        btl::SubscriberList subscribers;
+        btl::TxnMailbox txns_in;
 
-    function new();
-        txns_in = new();
-    endfunction
+        function void add_subscriber(btl::Subscriber subscriber);
+            subscribers.push_back(subscriber);
+        endfunction
 
-    function void put(btl::Transaction txn);
-        txns_in.put(txn);
-    endfunction
+        function new();
+            txns_in = new();
+        endfunction
 
-    task run();
-        forever begin
-            btl::Transaction txn_in;
-            TxnLowLevel ll_txn_in;
-            TxnLowLevel ll_txn_out;
-            txns_in.get(txn_in);
-            ll_txn_in = txn_in;
-            $display("LowLevel got txn: ", ll_txn_in.sprint());
-            if(ll_txn_in.name == "from tb top") begin
-                ll_txn_out = new();
-                ll_txn_out.name = "from LowLevel";
-                ll_txn_out.id = ll_txn_in.id;
-                foreach(subscribers[i]) begin
-                    // TODO: ok, txn_in is a bad name for this method.
-                    // It should probably just be "put"
-                    subscribers[i].txn_in(ll_txn_out);
+        task put(btl::Transaction txn);
+            txns_in.put(txn);
+        endtask
+
+        task run();
+            forever begin
+                btl::Transaction txn;
+                TxnLowLevel txn_in;
+                TxnLowLevel txn_out;
+                // #1;
+                txns_in.get(txn);
+                $cast(txn_in, txn);
+                $display("LowLevel got txn: ", txn_in.sprint());
+                if(txn_in.name == "from tb top") begin
+                    txn_out = new();
+                    txn_out.name = "from LowLevel";
+                    txn_out.id = txn_in.id;
+                    foreach(subscribers[i]) begin
+                        subscribers[i].put(txn_out);
+                    end
                 end
             end
-        end
-    endtask
-endclass
+        endtask
+    endclass
 
-class LowToHigh implements btl::Component, btl::Subscriber, btl::Producer;
-    btl::SubscriberList subscribers;
-    btl::TxnMailbox txns_in;
+    class LowToHigh implements btl::Component, btl::Subscriber, btl::Producer;
+        btl::SubscriberList subscribers;
+        btl::TxnMailbox txns_in;
 
-    function void add_subscriber(btl::Subscriber subscriber);
-        subscribers.push_back(subscriber);
-    endfunction
+        function void add_subscriber(btl::Subscriber subscriber);
+            subscribers.push_back(subscriber);
+        endfunction
 
-    function new();
-        txns_in = new();
-    endfunction
+        function new();
+            txns_in = new();
+        endfunction
 
-    function void put(btl::Transaction txn);
-        txns_in.put(txn);
-    endfunction
+        task put(btl::Transaction txn);
+            txns_in.put(txn);
+        endtask
 
-    task run();
-        forever begin
-            TxnLowLevel txn_in;
-            TxnHighLevel txn_out;
-            txns_in.get(txn_in);
-            $display("LowLevel got txn: ", txn_in.my_type);
-            txn_out = new();
-            txn_out.name = "from LowToHigh";
-            txn_out.id = txn_in.id;
-            foreach(subscribers[i]) begin
-                subscribers[i].txn_in(txn_out);
+        task run();
+            forever begin
+                btl::Transaction txn;
+                TxnLowLevel txn_in;
+                TxnHighLevel txn_out;
+                // #1;
+                txns_in.get(txn);
+                $cast(txn_in, txn);
+                $display("LowToHigh got txn: ", txn_in.sprint());
+                txn_out = new();
+                txn_out.name = "from LowToHigh";
+                txn_out.id = txn_in.id;
+                foreach(subscribers[i]) begin
+                    subscribers[i].put(txn_out);
+                end
             end
-        end
-    endtask
-endclass
+        endtask
+    endclass
 
-class HighToLow implements btl::Component, btl::Subscriber, btl::Producer;
-    btl::SubscriberList subscribers;
-    btl::TxnMailbox txns_in;
+    class HighToLow implements btl::Component, btl::Subscriber, btl::Producer;
+        btl::SubscriberList subscribers;
+        btl::TxnMailbox txns_in;
 
-    function void add_subscriber(btl::Subscriber subscriber);
-        subscribers.push_back(subscriber);
-    endfunction
+        function void add_subscriber(btl::Subscriber subscriber);
+            subscribers.push_back(subscriber);
+        endfunction
 
-    function new();
-        txns_in = new();
-    endfunction
+        function new();
+            txns_in = new();
+        endfunction
 
-    function void put(btl::Transaction txn);
-        txns_in.put(txn);
-    endfunction
+        task put(btl::Transaction txn);
+            txns_in.put(txn);
+        endtask
 
-    task run();
-        forever begin
-            TxnHighLevel txn_in;
-            TxnLowLevel txn_out;
-            txns_in.get(txn_in);
-            $display("LowLevel got txn: ", txn_in.my_type);
-            txn_out = new();
-            txn_out.name = "from HighToLow";
-            txn_out.id = txn_in.id;
-            foreach(subscribers[i]) begin
-                subscribers[i].txn_in(txn_out);
+        task run();
+            forever begin
+                btl::Transaction txn;
+                TxnHighLevel txn_in;
+                TxnLowLevel txn_out;
+                // #1;
+                txns_in.get(txn);
+                $cast(txn_in, txn);
+                $display("HighToLow got txn: ", txn_in.sprint());
+                txn_out = new();
+                txn_out.name = "from HighToLow";
+                txn_out.id = txn_in.id;
+                foreach(subscribers[i]) begin
+                    subscribers[i].put(txn_out);
+                end
             end
-        end
-    endtask
-endclass
+        endtask
+    endclass
 
-// Produces and Consumes TxnHighLevel
-class HighLevel implements btl::Component, btl::Subscriber, btl::Producer;
-    btl::SubscriberList subscribers;
-    btl::TxnMailbox txns_in;
+    // Produces and Consumes TxnHighLevel
+    class HighLevel implements btl::Component, btl::Subscriber, btl::Producer;
+        btl::SubscriberList subscribers;
+        btl::TxnMailbox txns_in;
 
-    function void add_subscriber(btl::Subscriber subscriber);
-        subscribers.push_back(subscriber);
-    endfunction
+        function void add_subscriber(btl::Subscriber subscriber);
+            subscribers.push_back(subscriber);
+        endfunction
 
-    function new();
-        txns_in = new();
-    endfunction
+        function new();
+            txns_in = new();
+        endfunction
 
-    function void put(btl::Transaction txn);
-        txns_in.put(txn);
-    endfunction
+        task put(btl::Transaction txn);
+            txns_in.put(txn);
+        endtask
 
-    task run();
-        forever begin
-            TxnLowLevel txn_in;
-            TxnLowLevel txn_out;
-            txns_in.get(txn_in);
-            $display("HighLevel got txn: %s %s", txn_in.name, txn_in.my_type);
-            txn_out = new();
-            txn_out.name = "from HighLevel";
-            txn_out.id = txn_in.id;
-            foreach(subscribers[i]) begin
-                subscribers[i].txn_in(txn_out);
+        task run();
+            forever begin
+                btl::Transaction txn;
+                TxnHighLevel txn_in;
+                TxnHighLevel txn_out;
+                // #1;
+                txns_in.get(txn);
+                $cast(txn_in, txn);
+                $display("HighLevel got txn: ", txn_in.sprint());
+                txn_out = new();
+                txn_out.name = "from HighLevel";
+                txn_out.id = txn_in.id;
+                foreach(subscribers[i]) begin
+                    subscribers[i].put(txn_out);
+                end
             end
-        end
-    endtask
-endclass
+        endtask
+    endclass
+endpackage : tb
 
 module top;
-    LowLevel ll;
-    LowToHigh low_to_high;
-    HighToLow high_to_low;
-    HighLevel hl;
-    TxnLowLevel txn_ll;
+    tb::LowLevel ll;
+    tb::LowToHigh low_to_high;
+    tb::HighToLow high_to_low;
+    tb::HighLevel hl;
+    tb::TxnLowLevel txn_ll;
     initial begin;
+        $display("test start");
         txn_ll = new();
         ll = new();
         low_to_high = new();
@@ -187,18 +199,21 @@ module top;
 
         hl.add_subscriber(high_to_low);
         high_to_low.add_subscriber(ll);
-
+        $display("forking processes");
         fork
             low_to_high.run();
             high_to_low.run();
             hl.run();
             ll.run();
         join_none
-        
-        txn_ll = new();
-        txn_ll.name = "from tb top";
-        ll.put(txn_ll);
-        
+        repeat(10) begin
+            txn_ll = new();
+            txn_ll.name = "from tb top";
+            $display("putting transaction");
+            ll.put(txn_ll);
+            #3;
+        end
+        #300;
         $finish();
     end
 endmodule

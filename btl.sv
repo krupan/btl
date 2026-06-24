@@ -6,7 +6,6 @@ package btl;
 
     interface class Component;
         pure virtual task run();
-
         // run should look something like this:
         //
         // task run();
@@ -19,11 +18,11 @@ package btl;
     typedef mailbox #(Transaction) TxnMailbox;
 
     interface class Subscriber;
-        pure virtual function void put(Transaction txn);
-
         // suggested class member
         //
-        // btl::Subscriber::TxnMailbox txns_in;
+        // btl::TxnMailbox txns_in;
+
+        pure virtual function void put(Transaction txn);
 
         // suggested constructor
         //
@@ -31,26 +30,25 @@ package btl;
         //     txns_in = new();
         // endfunction
 
-
         // suggested implementation of put
         //
-        // function void put(Txn txn);
-        //     txns_in.push_back(txn);
-        // endfunction
+        // task put(btl::Transaction txn);
+        //     txns_in.put(txn);
+        // endtask
     endclass
 
     typedef Subscriber SubscriberList[$];
 
     interface class Producer;
-        pure virtual function void add_subscriber(Subscriber subscriber);
-
         // suggested class member
         //
-        // btl::Producer::SubscriberList subscribers;
+        // btl::SubscriberList subscribers;
 
-        // suggested implementation of subscribe
+        pure virtual function void add_subscriber(Subscriber subscriber);
+
+        // suggested implementation of add_subscriber
         //
-        // function void add_subscriber(btl::TxnSubscriber subscriber);
+        // function void add_subscriber(btl::Subscriber subscriber);
         //     subscribers.push_back(subscriber);
         // endfunction
     endclass
@@ -65,11 +63,12 @@ package btl;
 
     // named after SystemRDL things
     class Field;
-        int unsigned lsb;
-        int unsigned size_bits;
-        string name;
+        const int unsigned lsb;
+        const int unsigned msb;
+        const int unsigned size_bits;
+        const string name;
         const longint unsigned reset_value;
-        FieldAttrib attrib;
+        const FieldAttrib attrib;
         longint unsigned value;
 
         function new(int unsigned lsb_in,
@@ -78,6 +77,7 @@ package btl;
                      longint unsigned reset_value_in,
                      FieldAttrib attrib_in);
             lsb = lsb_in;
+            msb = lsb + (size_bits - 1);
             size_bits = size_bits_in;
             name = name_in;
             reset_value = reset_value_in;
@@ -87,10 +87,6 @@ package btl;
 
         function void reset();
             value = reset_value;
-        endfunction
-
-        function int unsigned msb();
-            return lsb + (size_bits - 1);
         endfunction
 
         function longint unsigned read();
@@ -115,13 +111,13 @@ package btl;
             endcase
         endfunction
     endclass : Field
-    
+
     typedef Field Fields[longint unsigned];
 
     class Reg;
-        string name;
-        longint unsigned offset;
-        int unsigned size_bytes;
+        const string name;
+        const longint unsigned offset;
+        const int unsigned size_bytes;
         Fields fields;
 
         function new(string name_in,
@@ -140,7 +136,9 @@ package btl;
             longint unsigned out;
             foreach(fields[i]) begin
                 Field f = fields[i];
-                out[f.msb:f.lsb] = f.read();
+                for(int j = f.lsb; j <= f.msb; j++) begin
+                    out[j] = f.read()[j - f.lsb];
+                end
             end
             return out;
         endfunction
@@ -148,7 +146,11 @@ package btl;
         function void write(longint unsigned val);
             foreach(fields[i]) begin
                 Field f = fields[i];
-                f.write(val[f.msb:f.lsb]);
+                longint unsigned val_slice;
+                for(int j = f.lsb; j <= f.msb; j++) begin
+                    val_slice[j] = val[j - f.lsb];
+                end
+                f.write(val_slice);
             end
         endfunction
     endclass : Reg
@@ -158,7 +160,7 @@ package btl;
 
     class AddrMap;
         longint unsigned base_addr;
-        int unsigned size_bytes;
+        longint unsigned size_bytes;
         string name;
         Regs regs;
 
@@ -185,8 +187,8 @@ package btl;
             if(!regs.exists(addr)) begin
                 return 0;
             end
-            return regs[addr].read();
+            value = regs[addr].read();
+            return 1;
         endfunction
-
     endclass : AddrMap
-endpackage
+endpackage : btl
