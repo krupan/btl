@@ -1,7 +1,43 @@
 // B Testbench Library (much simpler than UVM)
 package btl;
 
-    interface class Transaction;
+    typedef enum {
+        READ,
+        WRITE,
+        WAITING_RSP,
+        RSP
+    } BaseTxnType;
+
+    typedef byte unsigned ByteQ[$];
+    typedef int ID;
+
+    class Transaction;
+        BaseTxnType base_type;
+        ID id;
+        ID requester_id;
+        string name;
+        ByteQ data;
+        int unsigned requested_data_size; // number of bytes
+
+        function new(BaseTxnType type_in);
+            base_type = type_in;
+            name = "BTL Transaction";
+            id = $urandom;
+        endfunction
+
+        protected function string base_type_str();
+            case(base_type)
+                READ: return "READ";
+                WRITE: return "WRITE";
+                RSP: return "RSP";
+                default: assert(0);
+            endcase
+        endfunction
+
+        virtual function string sprint();
+            return $sformatf("txn: %s, id: 0x%0x, type: %s, requester_id: 0x%0x",
+                             name, base_type_str, id, requester_id, );
+        endfunction
     endclass
 
     interface class Component;
