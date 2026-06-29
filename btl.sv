@@ -1,15 +1,18 @@
 // B Testbench Library (much simpler than UVM)
 package btl;
-
+    // request (REQ) and response (RSP) types
     typedef enum {
-        READ,
-        WRITE,
-        WAITING_RSP,
+        READ_REQ,
+        WRITE_REQ,
+        INCOMPLETE_RSP,
         RSP
     } BaseTxnType;
 
     typedef byte unsigned ByteQ[$];
     typedef int ID;
+
+    let max(a,b) = (a > b) ? a : b;
+    let min(a,b) = (a < b) ? a : b;
 
     class Transaction;
         BaseTxnType base_type;
@@ -17,7 +20,12 @@ package btl;
         ID requester_id;
         string name;
         ByteQ data;
-        int unsigned requested_data_size; // number of bytes
+        int unsigned data_size; // number of bytes
+
+        // this is for INCOMPLETE_RSP transactions that need multiple
+        // responses (probably of a lower-level transaction type).
+        // Use requester IDs for the keys to this associative array
+        Transaction missing_responses[ID];
 
         function new(BaseTxnType type_in);
             base_type = type_in;
@@ -27,16 +35,21 @@ package btl;
 
         protected function string base_type_str();
             case(base_type)
-                READ: return "READ";
-                WRITE: return "WRITE";
+                READ_REQ: return "READ_REQ";
+                WRITE_REQ: return "WRITE_REQ";
+                INCOMPLETE_RSP: return "INCOMPLETE_RSP";
                 RSP: return "RSP";
                 default: assert(0);
             endcase
         endfunction
 
         virtual function string sprint();
-            return $sformatf("txn: %s, id: 0x%0x, type: %s, requester_id: 0x%0x",
-                             name, base_type_str, id, requester_id, );
+            string str = "";
+            str = {str, "----------------------------------------\n"};
+            str = {str, $sformatf("txn: %s,\ntype: %s,\nid: 0x%0x,\nrequester_id: 0x%0x\nsize: %0d\n",
+                             name, base_type_str, id, requester_id, data_size)};
+            str = {str, "----------------------------------------\n"};
+            return str;
         endfunction
     endclass
 
