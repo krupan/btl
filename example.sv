@@ -19,7 +19,6 @@ package tb;
         LowLevelTxnType my_type;
         function new(btl::BaseTxnType type_in);
             super.new(type_in);
-            name = "low level Txn";
         endfunction
     endclass
 
@@ -40,6 +39,12 @@ package tb;
             txns_in.put(txn);
         endtask
 
+        task send_to_subscribers(btl::Transaction txn);
+            foreach(subscribers[i]) begin
+                subscribers[i].put(txn);
+            end
+        endtask
+
         task run();
             forever begin
                 btl::Transaction txn;
@@ -49,25 +54,25 @@ package tb;
                 if(!$cast(txn_in, txn)) begin
                     continue;
                 end
-                $display("LowLevel got\n", txn_in.sprint());
+                $display("\nLowLevel got:\n", txn_in.sprint());
                 case(txn_in.base_type)
                     btl::READ_REQ, btl::WRITE_REQ: begin
-                        $display("LowLevel sending response");
                         // simulating real hardware at this low level,
                         // so add a delay
                         #5;
                         txn_out = new(btl::RSP);
-                        txn_out.name = "response from LowLevel";
+                        txn_out.origin = "LowLevel";
                         txn_out.requester_id = txn_in.id;
                         for(int i = 0; i < txn_in.data_size; i++) begin
                             txn_out.data.push_back($urandom[7:0]);
+                            txn_out.data_size++;
                         end
-                        foreach(subscribers[i]) begin
-                            subscribers[i].put(txn_out);
-                        end
+                        $display({"\nLowLevel sending response:\n",
+                                 txn_out.sprint()});
+                        send_to_subscribers(txn_out);
                     end
                     default: begin
-                        // ignoring others for now
+                        $display("LowLevel ignoring txn above, unimplemented");
                     end
                 endcase
             end
@@ -91,27 +96,75 @@ package tb;
             txns_in.put(txn);
         endtask
 
-        task handle_high_level(btl::Transaction txn);
-            $display("LowToHigh TODO: handle high-level transactions");
+        task send_to_subscribers(btl::Transaction txn);
+            foreach(subscribers[i]) begin
+                subscribers[i].put(txn);
+            end
+        endtask
+
+        task handle_incomplete_rsp(btl::Transaction txn);
+            if(txn.base_type != btl::INCOMPLETE_RSP) begin
+                return;
+            end
+            assert(txns_waiting_rsp.exists(txn.id) == 0);
+            txns_waiting_rsp[txn.id] = txn;
+        endtask
+
+        task handle_rsp(TxnLowLevel rsp_in);
+            // find corresponding INCOMPLETE_RSP
+            int unsigned results[$];
+            int unused;
+            results = txns_waiting_rsp.find_index(x)
+                with (x.get_missing_response(rsp_in, unused) == 1);
+            if(results.size() == 0) begin
+                $display("LowToHigh ignoring txn above, no matching INCOMPLETE_RSP");
+                return; 
+            end
+            assert(results.size() <= 1);
+            txns_waiting_rsp[results[0]].update_missing_rsp(rsp_in);
+            
+            if(txns_waiting_rsp[results[0]].is_missing_responses()) begin
+                // still missing responses
+                $display("LowToHigh still waiting responses");
+                return;
+            end
+            // if we got here, we've gotten all the missing low-level
+            // responses that this high-level response needs
+            txns_waiting_rsp[results[0]].rsp_complete();
+            send_to_subscribers(txns_waiting_rsp[results[0]]);
+            txns_waiting_rsp.delete(results[0]);
         endtask
 
         task run();
             forever begin
                 btl::Transaction txn;
-                TxnLowLevel txn_in;
-                btl::Transaction txn_out;
+                TxnLowLevel ll_txn;
                 txns_in.get(txn);
-                if(!$cast(txn_in, txn)) begin
-                    handle_high_level(txn);
+                // possibilities:
+                //
+                // - ll txn from HighToLow - ignore
+                // - ll txn from LowLevel - process
+                // - hl txn from HightToLow - ignore unless INCOMPLETE_RSP
+                $display("\nLowToHigh got:\n", txn.sprint());
+                if($cast(ll_txn, txn)) begin
+                    if(txn.origin == "HighToLow") begin
+                        $display("LowToHigh ignoring txn above, don't care");
+                        continue;
+                    end
+                    if(txn.base_type == btl::RSP) begin
+                        handle_rsp(ll_txn);
+                        continue;
+                    end
+                    $display("LowToHigh ignoring txn above, unimplemented");
+                end
+                // handle hl txns
+                if(txn.base_type != btl::INCOMPLETE_RSP) begin
+                    $display("LowToHigh ignoring txn above, don't care");
                     continue;
                 end
-                $display("LowToHigh got\n", txn_in.sprint());
-                txn_out = new(txn_in.base_type);
-                txn_out.name = "from LowToHigh";
-                txn_out.id = txn_in.id;
-                foreach(subscribers[i]) begin
-                    subscribers[i].put(txn_out);
-                end
+                // if the above cast fails, it's a high-level txn
+                handle_incomplete_rsp(txn);
+                continue;
             end
         endtask
     endclass
@@ -151,19 +204,20 @@ package tb;
                 data_to_request = txn_in.data.size();
             end
             expected_cpl = new(btl::INCOMPLETE_RSP);
+            expected_cpl.origin = "HighToLow";
             expected_cpl.requester_id = txn_in.id;
             expected_cpl.data_size = data_to_request;
             while(data_to_request > 0) begin
                 TxnLowLevel txn_out = new(txn_in.base_type);
-                TxnLowLevel rsp = new(btl::RSP);
-                txn_out.name = "ll read request";
+                TxnLowLevel rsp = new(btl::INCOMPLETE_RSP);
+                txn_out.origin = "HighToLow";
 
                 txn_out.id = $urandom;
                 rsp.requester_id = txn_out.id;
 
                 txn_out.data_size = btl::min(data_to_request, MAX_LL_PAYLOAD_BYTES);
                 rsp.data_size = txn_out.data_size;
-                expected_cpl.missing_responses[txn_out.id] = rsp;
+                expected_cpl.add_missing_response(rsp);
                 data_to_request -= txn_out.data_size;
                 if(txn_out.base_type == btl::WRITE_REQ) begin
                     for(int i = 0; i < txn_out.data_size; i++) begin
@@ -188,7 +242,7 @@ package tb;
             forever begin
                 btl::Transaction txn_in;
                 txns_in.get(txn_in);
-                $display("HighToLow got\n", txn_in.sprint());
+                $display("\nHighToLow got:\n", txn_in.sprint());
                 case(txn_in.base_type)
                     btl::READ_REQ, btl::WRITE_REQ: handle_req(txn_in);
                     btl::RSP: handle_rsp(txn_in);
@@ -217,15 +271,19 @@ package tb;
             txns_in.put(txn);
         endtask
 
+        task send_to_subscribers(btl::Transaction txn);
+            foreach(subscribers[i]) begin
+                subscribers[i].put(txn);
+            end
+        endtask
+
         task write(longint unsigned addr, btl::ByteQ data);
             btl::Transaction req = new(btl::WRITE_REQ);
             btl::Transaction rsp = new(btl::INCOMPLETE_RSP);
             req.id = $urandom;
-            req.name = "hl read request";
+            req.origin = "HighLevel";
             req.data_size = data.size();
-            foreach(subscribers[i]) begin
-                subscribers[i].put(req);
-            end
+            send_to_subscribers(req);
         endtask
 
         task read(longint unsigned addr,
@@ -236,16 +294,14 @@ package tb;
             req.id = $urandom;
             rsp.requester_id = req.id;
 
-            req.name = "hl read request";
-            rsp.name = "hl response";
+            req.origin = "HighLevel";
+            rsp.origin = "HighLevel";
 
             req.data_size = data_size;
             rsp.data_size = data_size;
 
             missing_responses[req.id] = rsp;
-            foreach(subscribers[i]) begin
-                subscribers[i].put(req);
-            end
+            send_to_subscribers(req);
 
             wait(rsp.base_type == btl::RSP);
             missing_responses.delete(req.id);
@@ -256,7 +312,7 @@ package tb;
             forever begin
                 btl::Transaction txn;
                 txns_in.get(txn);
-                $display("HighLevel got\n", txn.sprint());
+                $display("\nHighLevel got:\n", txn.sprint());
                 if(txn.base_type != btl::RSP) begin
                     continue;
                 end
