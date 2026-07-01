@@ -1,0 +1,68 @@
+typedef enum {
+    READ_REQ,
+    WRITE_REQ,
+    INCOMPLETE_RSP,
+    RSP
+} BaseTxnType;
+
+class Transaction extends ResponseTracker;
+    BaseTxnType base_type;
+    int id;
+    int requester_id;
+    longint unsigned address;
+    ByteQ data;
+    int unsigned data_size; // number of bytes
+    string origin;
+
+    function new(BaseTxnType type_in);
+        base_type = type_in;
+        id = $urandom;
+    endfunction
+
+    protected function string base_type_str();
+        case(base_type)
+            READ_REQ: return "READ_REQ";
+            WRITE_REQ: return "WRITE_REQ";
+            INCOMPLETE_RSP: return "INCOMPLETE_RSP";
+            RSP: return "RSP";
+            default: assert(0);
+        endcase
+    endfunction
+
+    virtual function string sprint_delimiter();
+        return "----------------------------------------";
+    endfunction
+
+    virtual function string sprint_body();
+        string str = "";
+        str = {str, "type: ", base_type_str, "\n"};
+        str = {str, "origin: ", origin, "\n"};            
+        str = {str, $sformatf("id: %0d\n", id)};
+        str = {str, $sformatf("requester_id: %0d\n", requester_id)};
+        str = {str, $sformatf("address: 0x%0x\n", address)};
+        str = {str, $sformatf("data size: %0d\n", data_size)};
+        str = {str, $sformatf("data: %p\n", data)};
+        return str;
+    endfunction
+
+    virtual function string sprint();
+        string str;
+        str = {sprint_delimiter, "\n"};
+        str = {str, sprint_body()};
+        str = {str, sprint_delimiter};
+        return str;
+    endfunction
+
+    // Copies data from all missing responses to this transaction's
+    // data member then deletes its missing_responses list.  Assumes
+    // no INCOMPLETE_RSP transactions are in the missing_responses
+    // list.
+    function void rsp_complete();
+        base_type = btl::RSP;
+        foreach(missing_responses[i]) begin
+            assert(missing_responses[i].base_type != INCOMPLETE_RSP);
+            data = {data, missing_responses[i].data};
+        end
+        missing_responses.delete();
+    endfunction
+endclass : Transaction
