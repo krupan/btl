@@ -187,18 +187,18 @@ package tb;
 
         task handle_write(btl::Transaction req);
             int unsigned data_count;
-            int unsigned previous_data_count;
+            int unsigned previous_data_index;
             data_count = req.data_size;
-            previous_data_count = 0;
+            previous_data_index = 0;
             while(data_count > 0) begin
                 TxnLowLevel ll_req = new(req.base_type);
                 ll_req.sub_type = MEM_WRITE;
                 ll_req.origin = "HighToLow";
                 ll_req.id = $urandom;
                 /* verilator lint_off WIDTHEXPAND */
-                ll_req.address = req.address + previous_data_count;
+                ll_req.address = req.address + previous_data_index;
                 ll_req.data_size = btl::min(data_count, MAX_LL_PAYLOAD_BYTES);
-                previous_data_count = ll_req.data_size;
+                previous_data_index += ll_req.data_size;
                 for(int i = 0; i < ll_req.data_size; i++) begin
                     ll_req.data.push_back(req.data.pop_front());
                 end
@@ -213,9 +213,9 @@ package tb;
             btl::Transaction incomplete_rsp = new(btl::INCOMPLETE_RSP);
             btl::Transaction reqs_to_send[$];
             int unsigned data_count;
-            int unsigned previous_data_count;
+            int unsigned previous_data_index;
             data_count = req.data_size;
-            previous_data_count = 0;
+            previous_data_index = 0;
             incomplete_rsp.origin = "HighToLow";
             incomplete_rsp.requester_id = req.id;
             incomplete_rsp.data_size = data_count;
@@ -225,9 +225,9 @@ package tb;
                 ll_req.sub_type = MEM_READ;
                 ll_req.origin = "HighToLow";
                 ll_req.id = $urandom;
-                ll_req.address = req.address + previous_data_count;
+                ll_req.address = req.address + previous_data_index;
                 ll_req.data_size = btl::min(data_count, MAX_LL_PAYLOAD_BYTES);
-                previous_data_count = ll_req.data_size;
+                previous_data_index += ll_req.data_size;
 
                 expected_cpl.sub_type = CPL;
                 expected_cpl.requester_id = ll_req.id;

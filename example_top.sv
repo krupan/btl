@@ -45,6 +45,16 @@ module example_top;
             automatic btl::ByteQ read_data;
             $display("issuing read");
             high_level.read(i, data[i].size(), read_data);
+            if(read_data.size() != data[i].size()) begin
+               $error("read_data.size: %0d, data[i].size: %0d",
+                      read_data.size, data[i].size);
+            end
+            foreach(read_data[j]) begin
+                if(read_data[j] != data[i][j]) begin
+                    $error("read_data[%0d], 0x%0x, does not match data[0x%0x][%0d], 0x%0x",
+                           j, read_data[j], i, j, data[i][j]);
+                end
+            end
             if(read_data != data[i]) begin
                 // TODO: explain more about why it failed.  Size?  One or more bytes wrong?  Which bytes?
                 $error("read of addr 0x%0x failed!", i);
