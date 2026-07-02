@@ -3,7 +3,7 @@ module example_top;
     tb::LowToHigh low_to_high;
     tb::HighToLow high_to_low;
     tb::HighLevel high_level;
-    btl::ByteQ data[longint unsigned];
+    btl::ByteQ test_data[longint unsigned];
 
     initial begin;
         $display("test start");
@@ -37,25 +37,25 @@ module example_top;
                 write_data.push_back($urandom[7:0]);
             end
             high_level.write(addr, write_data);
-            data[addr] = write_data;
+            test_data[addr] = write_data;
         end
         
         // read data back
-        foreach(data[i]) begin
+        foreach(test_data[i]) begin
             automatic btl::ByteQ read_data;
             $display("issuing read");
-            high_level.read(i, data[i].size(), read_data);
-            if(read_data.size() != data[i].size()) begin
-               $error("read_data.size: %0d, data[i].size: %0d",
-                      read_data.size, data[i].size);
+            high_level.read(i, test_data[i].size(), read_data);
+            if(read_data.size() != test_data[i].size()) begin
+               $error("read_data.size: %0d, test_data[i].size: %0d",
+                      read_data.size, test_data[i].size);
             end
             foreach(read_data[j]) begin
-                if(read_data[j] != data[i][j]) begin
-                    $error("read_data[%0d], 0x%0x, does not match data[0x%0x][%0d], 0x%0x",
-                           j, read_data[j], i, j, data[i][j]);
+                if(read_data[j] != test_data[i][j]) begin
+                    $error("read_data[%0d], 0x%0x, does not match test_data[0x%0x][%0d], 0x%0x",
+                           j, read_data[j], i, j, test_data[i][j]);
                 end
             end
-            if(read_data != data[i]) begin
+            if(read_data != test_data[i]) begin
                 // TODO: explain more about why it failed.  Size?  One or more bytes wrong?  Which bytes?
                 $error("read of addr 0x%0x failed!", i);
                 continue;
