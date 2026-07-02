@@ -30,7 +30,7 @@ module example_top;
         // writes some data
         repeat(10) begin
             automatic longint unsigned addr = {$urandom, $urandom};
-            automatic int unsigned size = $urandom_range(5, 10);
+            automatic int unsigned size = $urandom_range(255, 1024);
             automatic btl::ByteQ write_data;
             $display("issuing write");
             for(int i = 0; i < size; i++) begin
@@ -46,6 +46,7 @@ module example_top;
             $display("issuing read");
             high_level.read(i, data[i].size(), read_data);
             if(read_data != data[i]) begin
+                // TODO: explain more about why it failed.  Size?  One or more bytes wrong?  Which bytes?
                 $error("read of addr 0x%0x failed!", i);
                 continue;
             end
