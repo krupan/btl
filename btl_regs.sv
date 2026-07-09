@@ -45,7 +45,11 @@ package btl_regs;
                     return;
                 end
                 RW1C: begin
-                    value = 0;
+                    for(int i = 0; i < size_bits; i++) begin
+                        if(val[i] == 1) begin
+                            value[i] = 0;
+                        end
+                    end
                     return;
                 end
                 RW: begin
@@ -78,14 +82,14 @@ package btl_regs;
             fields = fields_in;
         endfunction
 
-        function bit field_by_name(string name, ref Field field_ref);
+        function void field_by_name(string name, ref Field field_ref);
             foreach(fields[i]) begin
                 if(fields[i].name == name) begin
                     field_ref = fields[i];
-                    return 1;
+                    return;
                 end
             end
-            return 0;
+            assert(0);
         endfunction
 
         function void reset();
@@ -123,9 +127,27 @@ package btl_regs;
 
     class AddrMap;
         longint unsigned base_addr;
-        longint unsigned size_bytes;
+        int unsigned size_bytes;
         string name;
         Regs regs;
+
+        function new(longint unsigned base_addr,
+                     int unsigned size_bytes);
+            this.base_addr = base_addr;
+            this.size_bytes = size_bytes;
+        endfunction
+
+        function void add_reg(Reg new_reg);
+            regs[new_reg.offset] = new_reg;
+        endfunction
+
+        function void check_size();
+            int unsigned size;
+            foreach(regs[i]) begin
+                size += regs[i].size_bytes;
+            end
+            assert(size == size_bytes);
+        endfunction
 
         function void reset();
             foreach(regs[i]) begin
@@ -137,37 +159,31 @@ package btl_regs;
             if(address < base_addr) begin
                 return 0;
             end
-            if(address > (base_addr + (size_bytes-1))) begin
+            if(address > (base_addr + ({32'h0, size_bytes}-1))) begin
                 return 0;
             end
             return 1;
         endfunction
 
-        function bit reg_by_name(string name, ref Reg reg_ref);
+        function void reg_by_name(string name, ref Reg reg_ref);
             foreach(regs[i]) begin
                 if(regs[i].name == name) begin
                     reg_ref = regs[i];
-                    return 1;
+                    return;
                 end
             end
-            return 0;
+            assert(0);
         endfunction
 
-        function bit reg_write(longint unsigned addr,
-                               longint unsigned value);
-            if(!regs.exists(addr)) begin
-                return 0;
-            end
+        function void reg_write(longint unsigned addr,
+                                longint unsigned value);
+            assert(regs.exists(addr) != 0);
             regs[addr].write(value);
         endfunction
 
-        function bit reg_read(longint unsigned addr,
-                              output longint unsigned value);
-            if(!regs.exists(addr)) begin
-                return 0;
-            end
-            value = regs[addr].read();
-            return 1;
+        function longint unsigned reg_read(longint unsigned addr);
+            assert(regs.exists(addr) != 0);
+            return regs[addr].read();
         endfunction
     endclass : AddrMap
 endpackage : btl_regs

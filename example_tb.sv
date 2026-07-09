@@ -40,7 +40,7 @@ package tb;
 
         function new();
             super.new();
-            example_regs = new();
+            example_regs = new(0, 8);
             example_regs.reset();
         endfunction
 
@@ -52,11 +52,8 @@ package tb;
             if(example_regs.addr_inside(req.address)) begin
                 bit success;
                 longint unsigned value;
-                for(int i = 0; i < req.data_size; i++) begin
-                    value[i*8-:8] = req.data.pop_front();
-                end
-                success = example_regs.reg_write(req.address, value);
-                assert(success);
+                value = btl::byteq_to_value(req.data);
+                example_regs.reg_write(req.address, value);
                 return;
             end
             for(int i = 0; i < req.data_size; i++) begin
@@ -70,18 +67,15 @@ package tb;
             TxnLowLevel rsp;
             // simulating real hardware at this low level, so add a
             // delay
-            $display("LowLevel in handle_read, delaying");
             #5;
-            $display("LowLevel done delaying");
             rsp = new(btl::RSP);
             rsp.sub_type = CPL;
             rsp.origin = "LowLevel";
             rsp.requester_id = req.id;
             if(example_regs.addr_inside(req.address)) begin
                 longint unsigned value;
-                bit success = example_regs.reg_read(req.address, value);
+                value = example_regs.reg_read(req.address);
                 $display("LowLevel reading register");
-                assert(success);
                 for(int i = 0; i < req.data_size; i++) begin
                     rsp.data.push_back(value[7:0]);
                     rsp.data_size++;
@@ -107,7 +101,7 @@ package tb;
                 default: assert(0);
             endcase
         endtask
-        
+
         task handle_rsp(TxnLowLevel rsp);
             $display("LowLevel handle_rsp not implemented");
         endtask
@@ -138,7 +132,6 @@ package tb;
     class LowToHigh extends btl::Component;
 
         task handle_incomplete_rsp(btl::Transaction rsp);
-            $display("LowToHigh in handle_incomplete_rsp");
             add_missing_response(rsp);
         endtask
 
@@ -148,7 +141,7 @@ package tb;
             bit success;
             success = get_missing_sub_rsp(rsp_in, index);
             if(!success) begin
-                return; 
+                return;
             end
             update_missing_sub_rsp(index, rsp_in);
             if(is_missing_sub_rsps(index)) begin
@@ -328,6 +321,23 @@ package tb;
     endclass : HighToLow
 
     class HighLevel extends btl::Component;
+
+        task write_reg(longint unsigned addr,
+                       int unsigned reg_size_bytes,
+                       longint unsigned value);
+            btl::ByteQ data = btl::value_to_byteq(value);
+            data = data[0:reg_size_bytes];
+            write(addr, data);
+        endtask
+
+        task read_reg(longint unsigned addr,
+                      int unsigned reg_size_bytes,
+                      output longint unsigned value);
+            btl::ByteQ data;
+            read(addr, reg_size_bytes, data);
+            value = btl::byteq_to_value(data);
+        endtask
+
 
         task write(longint unsigned addr, btl::ByteQ data);
             btl::Transaction req = new(btl::WRITE_REQ);

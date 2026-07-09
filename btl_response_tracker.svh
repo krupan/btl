@@ -11,10 +11,9 @@ class ResponseTracker;
     ////////////////////////////////////////////////////////////////////////////
     // rsp methods
     ////////////////////////////////////////////////////////////////////////////
-    
+
     // Adds INCOMPLETE_RSP to missing_responses list
     virtual function void add_missing_response(Transaction rsp);
-        $display("ResponseTracker in add_missing_response");
         assert(rsp.base_type == INCOMPLETE_RSP);
         missing_responses.push_back(rsp);
     endfunction

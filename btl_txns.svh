@@ -36,12 +36,16 @@ class Transaction extends ResponseTracker;
     virtual function string sprint_body();
         string str = "";
         str = {str, "type: ", base_type_str, "\n"};
-        str = {str, "origin: ", origin, "\n"};            
+        str = {str, "origin: ", origin, "\n"};
         str = {str, $sformatf("id: %0d\n", id)};
         str = {str, $sformatf("requester_id: %0d\n", requester_id)};
         str = {str, $sformatf("address: 0x%0x\n", address)};
         str = {str, $sformatf("data size: %0d\n", data_size)};
-        str = {str, $sformatf("data: %p\n", data)};
+        str = {str, $sformatf("data bytes: %p\n", data)};
+        if(data.size() <= 8) begin
+            str = {str, $sformatf("data: 0x%0x\n",
+                                  byteq_to_value(data))};
+        end
         return str;
     endfunction
 

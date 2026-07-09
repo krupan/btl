@@ -12,7 +12,7 @@ package btl;
 
     function ByteQ value_to_byteq(longint unsigned value);
         for(int i = 0; i < 8; i++) begin
-            value_to_byteq.push_back(value[i*8 -: 8]);
+            value_to_byteq.push_back(value[i*8 +: 8]);
         end
     endfunction
 
