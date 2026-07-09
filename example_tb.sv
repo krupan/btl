@@ -36,12 +36,29 @@ package tb;
         // memory model very specific to this simple example
         // testbench, associative array of ByteQ's, indexed by address
         btl::ByteQ memory[longint unsigned];
+        example_regs::ExampleRegs example_regs;
+
+        function new();
+            super.new();
+            example_regs = new();
+            example_regs.reset();
+        endfunction
 
         task handle_write(TxnLowLevel req);
             btl::ByteQ data;
             // simulating real hardware at this low level, so add a
             // delay
             #5;
+            if(example_regs.addr_inside(req.address)) begin
+                bit success;
+                longint unsigned value;
+                for(int i = 0; i < req.data_size; i++) begin
+                    value[i*8-:8] = req.data.pop_front();
+                end
+                success = example_regs.reg_write(req.address, value);
+                assert(success);
+                return;
+            end
             for(int i = 0; i < req.data_size; i++) begin
                 byte unsigned data_byte = req.data.pop_front();
                 data.push_back(data_byte);
@@ -53,15 +70,31 @@ package tb;
             TxnLowLevel rsp;
             // simulating real hardware at this low level, so add a
             // delay
+            $display("LowLevel in handle_read, delaying");
             #5;
+            $display("LowLevel done delaying");
             rsp = new(btl::RSP);
             rsp.sub_type = CPL;
             rsp.origin = "LowLevel";
             rsp.requester_id = req.id;
-            assert(memory.exists(req.address) != 0);
-            for(int i = 0; i < req.data_size; i++) begin
-                rsp.data[i] = memory[req.address][i];
-                rsp.data_size++;
+            if(example_regs.addr_inside(req.address)) begin
+                longint unsigned value;
+                bit success = example_regs.reg_read(req.address, value);
+                $display("LowLevel reading register");
+                assert(success);
+                for(int i = 0; i < req.data_size; i++) begin
+                    rsp.data.push_back(value[7:0]);
+                    rsp.data_size++;
+                    value = value >> 8;
+                end
+            end
+            else begin
+                $display("LowLevel reading memory");
+                assert(memory.exists(req.address) != 0);
+                for(int i = 0; i < req.data_size; i++) begin
+                    rsp.data[i] = memory[req.address][i];
+                    rsp.data_size++;
+                end
             end
             $display({"\nLowLevel sending response:\n", rsp.sprint()});
             send_to_subscribers(rsp);
@@ -105,6 +138,7 @@ package tb;
     class LowToHigh extends btl::Component;
 
         task handle_incomplete_rsp(btl::Transaction rsp);
+            $display("LowToHigh in handle_incomplete_rsp");
             add_missing_response(rsp);
         endtask
 
