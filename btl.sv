@@ -20,6 +20,10 @@ package btl;
     `include "btl_response_tracker.svh"
     `include "btl_txns.svh"
 
+    virtual class TxnIDTracker;
+        bit ids_in_flight[int unsigned];
+    endclass
+
     virtual class Component extends ResponseTracker;
         mailbox #(Transaction) txns_in;
         Component subscribers[$];

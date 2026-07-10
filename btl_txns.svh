@@ -7,8 +7,8 @@ typedef enum {
 
 class Transaction extends ResponseTracker;
     BaseTxnType base_type;
-    int id;
-    int requester_id;
+    int unsigned id;
+    int unsigned requester_id;
     Address address;
     ByteQ data;
     int unsigned data_size; // number of bytes
