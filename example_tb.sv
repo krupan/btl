@@ -1,4 +1,4 @@
-package tb;
+package example_tb;
 
     localparam MAX_LL_PAYLOAD_BYTES = 256;
 
@@ -387,4 +387,4 @@ package tb;
             end
         endtask
     endclass : HighLevel
-endpackage : tb
+endpackage : example_tb

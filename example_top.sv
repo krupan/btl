@@ -1,8 +1,8 @@
 module example_top;
-    tb::LowLevel low_level;
-    tb::LowToHigh low_to_high;
-    tb::HighToLow high_to_low;
-    tb::HighLevel high_level;
+    example_tb::LowLevel low_level;
+    example_tb::LowToHigh low_to_high;
+    example_tb::HighToLow high_to_low;
+    example_tb::HighLevel high_level;
     btl::ByteQ test_data[btl::Address];
     // this provides us with name/address mapping, easy register field
     // parsing/assignment, and a place to record expected values.
