@@ -1,0 +1,15 @@
+[project]
+name = "btl"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "peakrdl>=1.5.0",
+]
+
+[peakrdl]
+# Paths for Python to search for importable modules
+python_search_paths = [
+    "peakrdl"
+]
+# Define entry-point spec for the exporter
+plugins.exporters.btl-reg-exporter = "btl_reg_exporter:BtlRegDescriptor"

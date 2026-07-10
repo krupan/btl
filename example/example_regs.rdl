@@ -1,0 +1,65 @@
+addrmap example_regs {
+    name = "btl example regs";
+    desc = "Registers for the btl example code";
+
+    reg {
+        name = "csr_a";
+        desc = "Example csr";    
+
+        field {
+            name = "Power State";
+            sw = rw;
+            hw = rw;
+        } power_state[2:0] = 3'b101;
+
+        field {
+            name = "Error Status";
+            desc = "Error status bits, write 1 to clear";
+            sw = rw;      
+            onwrite = woclr;
+            hw = rw;
+        } error_status[7:3] = 5'h0;
+
+        field {
+            name = "Message";
+            desc = "For exchanging messages between hw and sw";
+            sw = rw;
+            hw = rw;
+        } message[31:8] = 24'h0;    
+
+    } csr_a @ 0x0;
+
+    reg {
+        name = "csr_b";
+        desc = "Another example csr";    
+
+        field {
+            name = "ID";
+            desc = "Read-only ID";
+            sw = r;
+            hw = rw;
+        } ID[7:0] = 8'h0;
+
+        field {
+            name = "Class";
+            desc = "Read-only device class";
+            sw = r;
+            hw = rw;
+        } class[15:8] = 8'h0;
+
+        field {
+            name = "Version";
+            desc = "Read-only device version";
+            sw = r;
+            hw = rw;
+        } version[23:16] = 8'h0;
+
+        field {
+            name = "Enable";      
+            desc = "Write 1 to enable device, 0 to disable";
+            sw = rw;
+            hw = rw;
+        } enable[24:24] = 1'b0;
+    
+    } csr_b @ 0x4;  
+};

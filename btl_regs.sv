@@ -71,7 +71,7 @@ package btl_regs;
         Fields fields;
 
         function new(string name_in,
-                     longint unsigned offset_in,
+                     btl::Address offset_in,
                      int unsigned size_bytes_in);
             name = name_in;
             offset = offset_in;
@@ -98,10 +98,10 @@ package btl_regs;
             end
         endfunction
 
-        function longint unsigned read();
-            longint unsigned out;
+        function btl::Value read();
+            btl::Value out;
             foreach(fields[i]) begin
-                longint unsigned field_value = fields[i].read();
+                btl::Value field_value = fields[i].read();
                 for(int unsigned j = fields[i].lsb;
                     j <= fields[i].msb; j++) begin
                     out[j] = field_value[j - fields[i].lsb];
@@ -110,10 +110,10 @@ package btl_regs;
             return out;
         endfunction
 
-        function void write(longint unsigned val);
+        function void write(btl::Value val);
             foreach(fields[i]) begin
                 Field f = fields[i];
-                longint unsigned val_slice;
+                btl::Value val_slice;
                 for(int j = 0; j < f.size_bits; j++) begin
                     val_slice[j] = val[j+f.lsb];
                 end
@@ -123,15 +123,15 @@ package btl_regs;
     endclass : Reg
 
     // index is a register offset
-    typedef Reg Regs[longint unsigned];
+    typedef Reg Regs[btl::Address];
 
     class AddrMap;
-        longint unsigned base_addr;
+        btl::Address base_addr;
         int unsigned size_bytes;
         string name;
         Regs regs;
 
-        function new(longint unsigned base_addr,
+        function new(btl::Address base_addr,
                      int unsigned size_bytes);
             this.base_addr = base_addr;
             this.size_bytes = size_bytes;
@@ -155,7 +155,7 @@ package btl_regs;
             end
         endfunction
 
-        function bit addr_inside(longint unsigned address);
+        function bit addr_inside(btl::Address address);
             if(address < base_addr) begin
                 return 0;
             end
@@ -175,13 +175,13 @@ package btl_regs;
             assert(0);
         endfunction
 
-        function void reg_write(longint unsigned addr,
-                                longint unsigned value);
+        function void reg_write(btl::Address addr,
+                                btl::Value value);
             assert(regs.exists(addr) != 0);
             regs[addr].write(value);
         endfunction
 
-        function longint unsigned reg_read(longint unsigned addr);
+        function btl::Value reg_read(btl::Address addr);
             assert(regs.exists(addr) != 0);
             return regs[addr].read();
         endfunction

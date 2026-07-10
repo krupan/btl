@@ -7,11 +7,11 @@ The code is organized into 2 packages:
 - btl :: classes for modeling testbench components and the transactions that the components work with
 - btl_regs :: classes for modeling configuration and status registers (CSRs)
 
-And that's it.
+There is also a [[https://peakrdl.readthedocs.io/en/latest/][PeakRDL]] plugin for generating =btl_regs= code from SystemRDL.
 
 For documentation purposes there is also an example testbench that uses btl.  That is organized into 2 packages and one top-level module:
 
-- example_regs :: uses btl_regs to model some CSRs
+- example_regs :: uses btl_regs to model some CSRs, generated from =example_regs.rdl=
 - example_tb :: uses btl to model transactions and multiple layers of detail in the testbench
 - example_top :: module that connects the registers and components into a working testbench and provides stimulus and checking using those.
 
