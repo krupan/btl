@@ -53,3 +53,17 @@ By simply using the largest integer type there is we don't have to parameterize 
 For variable sized data payloads we use queues of bytes because queues are flexible and have some nice features like =size()=, =exists()=, =push_back()=, =pop_front()=, =delete()=, easy assignment, easy iteration, easy concatenation, easy slicing using variables (amazing!), etc.
 
 To convert between those two types btl supplies functions =byteq_to_value= and =value_to_byteq=.  Hopefully those are self evident what they do and how they work.
+
+** More Than One Class Per File 
+
+I don't know how many people do this, but I've seen suggestions that you should only have one class per file (even in other languages, not just SystemVerilog).  Classes don't have to  (and really shouldn't) be big things with tons of lines of code.  You wouldn't put one struct, enum, or typedef per file.  Classes don't have to be one per file either.  That's too much cognitive load.  btl puts classes in their own file (that's added to a package with a =`include=) when they grow too big, otherwise they can all be in the same file as the package they are a part of.
+
+I'm not really a fan of one-module-per file either but testbenches don't usually define modules so we won't argue about that.  For packages I don't ever feel like I want more than one per file, but I don't know, maybe it would be useful at some point.
+
+** File Naming
+
+Files that are included into other files (like the files for big classes discussed above) are named with a =.svh= extension.  They do not have include guards because they should only ever be included in one file and include guards would make it harder to detect if someone does that.  These are not C/C++ header files. 
+
+Files that contain top-level things like packages or modules should not be included in other files and should always have the =.sv= extension.
+
+btl doesn't, but if you do use a collection of defines/macros, you should put those in a file, put include guards around them, and name the file with a =.svh= extension.  This is just like a C/C++ header file.  But really, do all you can to avoid defines/macros.  SystemVerilog gives you lots of other tools that can accomplish the same things (classes, typedefs, =localparam=, =const=, =let=, and the strategies btl uses such as =longint unsigned= and simple base classes for everything).
