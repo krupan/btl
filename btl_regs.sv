@@ -13,14 +13,14 @@ package btl_regs;
         const int unsigned msb;
         const int unsigned size_bits;
         const string name;
-        const longint unsigned reset_value;
+        const btl::Value reset_value;
         const FieldAttrib attrib;
-        longint unsigned value;
+        btl::Value value;
 
         function new(int unsigned lsb_in,
                      int unsigned size_bits_in,
                      string name_in,
-                     longint unsigned reset_value_in,
+                     btl::Value reset_value_in,
                      FieldAttrib attrib_in);
             lsb = lsb_in;
             size_bits = size_bits_in;
@@ -35,11 +35,11 @@ package btl_regs;
             value = reset_value;
         endfunction
 
-        function longint unsigned read();
+        function btl::Value read();
             return value;
         endfunction
 
-        function void write(longint unsigned val);
+        function void write(btl::Value val);
             case (attrib)
                 RO: begin
                     return;
@@ -62,11 +62,11 @@ package btl_regs;
         endfunction
     endclass : Field
 
-    typedef Field Fields[longint unsigned];
+    typedef Field Fields[btl::Value];
 
     class Reg;
         const string name;
-        const longint unsigned offset;
+        const btl::Value offset;
         const int unsigned size_bytes;
         Fields fields;
 

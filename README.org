@@ -1,0 +1,55 @@
+* B Testbench Library
+
+The B Testbench Library, referred to hereafter as the btl, is not a Methodology, it's just a library of code that implements some common patterns that testbenches follow.  It aims to be lightweight and easily understood.  There are no macros, no interfaces, no parameterized classes, no registries, and no committees of competing commercial interests behind it.
+
+The code is organized into 2 packages:
+
+- btl :: classes for modeling testbench components and the transactions that the components work with
+- btl_regs :: classes for modeling configuration and status registers (CSRs)
+
+And that's it.
+
+For documentation purposes there is also an example testbench that uses btl.  That is organized into 2 packages and one top-level module:
+
+- example_regs :: uses btl_regs to model some CSRs
+- tb :: uses btl to model transactions and multiple layers of detail in the testbench
+- example_top :: module that connects the registers and components into a working testbench and provides stimulus and checking using those.
+
+* Testbench Structure
+
+The classes btl defines are for encapsulation and re-use.  Even more importantly, they are for working around the SystemVerilog type system, because when you are writing testbenches that shit just gets in the way.  Don't @ me when you notice Liskov-substitution-principle violations.  A quiet, "thank you," will do.
+
+In all seriousness, we just need some re-usable code that passes transactions around and stores them no matter what the transaction actually is.  There's no need to parameterize the code if you just have a very basic, generic =Transaction= type that all the functions, tasks, and containers (queues, mailboxes, associative arrays, etc.) use.  Not having parameters makes the code so much easier on the eyes and the brain.  It makes the code easy to read and understand, which makes it easy to modify and debug when needed (and code *always* needs that).  It's a win win win scenario.
+
+TODO: draw a diagram
+
+* Coding Style
+
+It feels weird to bring this up, but I'm sure people will notice that btl doesn't follow some coding styles that UVM and therefore most SystemVerilog code follows.  Here are the things where btl diverges and why.
+
+** User-defined Types
+
+Class and other user-defined types (typedefs, and...are there other user-defined types in SystemVerilog?) start with capital letters and use =CamelCase=.  Instances of classes and other user-defined types use =snake_case= naming.  This is the style nearly every other object oriented language does it (Python, C++, Java, etc.).  It's a lot better than having =class foo;= and then needing to append a character to the instance like =foo foo_c;=.  I know there's a long history of modules in old-skool verilog using lowercase names for the module definition and then some tortured version of that module name for module instances, but we don't need to do that with classes.  Other language communities have already figure that one out for us.
+
+** Packages
+
+btl does not append =_pkg= to the names of packages.  It also does not ever do =import <pkg_name>::*;=.  I strongly recommend you do the same with your SystemVerilog code.  Like with classes, packages exist in other languages, just with different names sometimes.  C++ has namespaces, Python and Perl have modules (not to be confused with verilog modules), Java has packages, etc.  None of those language communities encourage naming those with suffixes to indicate what they are and both frown upon (except in certain cases) doing the equivalent of =import <pkg_name>::*;=.  
+
+The =_pkg= suffix is just not necessary.  In SystemVerilog there is one place where a package name is used, that's preceding a =::=.  There is only one other thing in the language that can precede a =::= and that's a class name.  In both cases, the package name or the class name are doing the same thing, providing a scope, so it doesn't really matter which one it is.  Despite that, we capitalize class names and leave package names lower case which easy to tell which is which when when you see =btl::Field= or =Foo::bar= (no btl classes have class variables, so I don't have an example to use there).
+
+Importing everything from one package (scope) into another scope using =import <pkg_name>::*;= totally defeats the point of having a package.  Packages allow you to have two variables with the same name as long as they are in different packages.  Importing =*= breaks that.  If the UVM followed the style of NOT importing =*=, the package would be =uvm= and nothing inside the =uvm= package would need the =uvm_= prefix.  Instead of, for example, =uvm_driver= you would have =uvm::driver=, or =uvm::sequence_item= instead of =uvm_sequence_item=, or well, you get it.  And actually it would be =uvm::Driver= and =uvm::SequenceItem= which is even more clear (=Driver= and =SequenceItem= are obviously types).
+
+** Built-in Types
+
+The other place that theSystemVerilog type system is annoying in testbench code is with basic address and data types.  btl uses two main types for addresses and data in transactions.  They are:
+
+- 64-bit unsigned integer, aka:
+  - =typedef longint unsigned Addr=
+  - =typedef longint unsigned Value=
+- queue of bytes, aka, =typedef byte unsigned ByteQ[$];=
+
+By simply using the largest integer type there is we don't have to parameterize any of our classes, tasks, or functions (which is good because you can't have a parameterized task or function in SystemVerilog).  The =btl_regs= classes include a =size_bits= member to specify the actual size of the value they represent.
+
+For variable sized data payloads we use queues of bytes because queues are flexible and have some nice features like =size()=, =exists()=, =push_back()=, =pop_front()=, =delete()=, easy assignment, easy iteration, easy concatenation, easy slicing using variables (amazing!), etc.
+
+To convert between those two types btl supplies functions =byteq_to_value= and =value_to_byteq=.  Hopefully those are self evident what they do and how they work.

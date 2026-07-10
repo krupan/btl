@@ -3,7 +3,7 @@ package example_regs;
         btl_regs::Reg csr_a;
         btl_regs::Reg csr_b;
 
-        function new(longint unsigned base_addr,
+        function new(btl::Address base_addr,
                      int unsigned size_bytes);
             btl_regs::Fields f;
             super.new(base_addr, size_bytes);

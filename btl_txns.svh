@@ -9,7 +9,7 @@ class Transaction extends ResponseTracker;
     BaseTxnType base_type;
     int id;
     int requester_id;
-    longint unsigned address;
+    Address address;
     ByteQ data;
     int unsigned data_size; // number of bytes
     string origin;

@@ -35,7 +35,7 @@ package tb;
     class LowLevel extends btl::Component;
         // memory model very specific to this simple example
         // testbench, associative array of ByteQ's, indexed by address
-        btl::ByteQ memory[longint unsigned];
+        btl::ByteQ memory[btl::Address];
         example_regs::ExampleRegs example_regs;
 
         function new();
@@ -51,7 +51,7 @@ package tb;
             #5;
             if(example_regs.addr_inside(req.address)) begin
                 bit success;
-                longint unsigned value;
+                btl::Value value;
                 value = btl::byteq_to_value(req.data);
                 example_regs.reg_write(req.address, value);
                 return;
@@ -73,7 +73,7 @@ package tb;
             rsp.origin = "LowLevel";
             rsp.requester_id = req.id;
             if(example_regs.addr_inside(req.address)) begin
-                longint unsigned value;
+                btl::Value value;
                 value = example_regs.reg_read(req.address);
                 $display("LowLevel reading register");
                 for(int i = 0; i < req.data_size; i++) begin
@@ -322,24 +322,24 @@ package tb;
 
     class HighLevel extends btl::Component;
 
-        task write_reg(longint unsigned addr,
+        task write_reg(btl::Address addr,
                        int unsigned reg_size_bytes,
-                       longint unsigned value);
+                       btl::Value value);
             btl::ByteQ data = btl::value_to_byteq(value);
             data = data[0:reg_size_bytes];
             write(addr, data);
         endtask
 
-        task read_reg(longint unsigned addr,
+        task read_reg(btl::Address addr,
                       int unsigned reg_size_bytes,
-                      output longint unsigned value);
+                      output btl::Value value);
             btl::ByteQ data;
             read(addr, reg_size_bytes, data);
             value = btl::byteq_to_value(data);
         endtask
 
 
-        task write(longint unsigned addr, btl::ByteQ data);
+        task write(btl::Address addr, btl::ByteQ data);
             btl::Transaction req = new(btl::WRITE_REQ);
             req.id = $urandom;
             req.origin = "HighLevel";
@@ -349,7 +349,7 @@ package tb;
             send_to_subscribers(req);
         endtask
 
-        task read(longint unsigned addr,
+        task read(btl::Address addr,
                   int unsigned data_size,
                   output btl::ByteQ data);
             btl::Transaction req = new(btl::READ_REQ);

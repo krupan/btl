@@ -3,12 +3,12 @@ module example_top;
     tb::LowToHigh low_to_high;
     tb::HighToLow high_to_low;
     tb::HighLevel high_level;
-    btl::ByteQ test_data[longint unsigned];
+    btl::ByteQ test_data[btl::Address];
     // this provides us with name/address mapping, easy register field
     // parsing/assignment, and a place to record expected values.
     example_regs::ExampleRegs shadow_regs;
-    longint unsigned addr;
-    longint unsigned value;
+    btl::Address addr;
+    btl::Value value;
     btl_regs::Reg csr;
     btl_regs::Field csr_field;
 
