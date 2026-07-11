@@ -21,7 +21,42 @@ The classes btl defines are for encapsulation and re-use.  Even more importantly
 
 In all seriousness, we just need some re-usable code that passes transactions around and stores them no matter what the transaction actually is.  There's no need to parameterize the code if you just have a very basic, generic =Transaction= type that all the functions, tasks, and containers (queues, mailboxes, associative arrays, etc.) use.  Not having parameters makes the code so much easier on the eyes and the brain.  It makes the code easy to read and understand, which makes it easy to modify and debug when needed (and code *always* needs that).  It's a win win win scenario.
 
-TODO: draw a diagram
+#+begin_src plantuml :file example/build/example.svg
+  @startuml
+
+  !theme vibrant
+
+  ' example_top is a verilog module, but plantUML doesn't have those
+  namespace example_top {
+      object initial
+      object high_level {
+          +write_reg()
+          +write()
+          +read_reg()
+          +read()
+      }
+      object low_level {
+          example_regs
+          memory
+      }
+      object high_to_low
+      object low_to_high
+  }
+
+  ' Relationships
+  example_top.initial -d-> example_top.high_level : write(), read(), etc.
+  example_top.high_level -d-> example_top.high_to_low : put(txn)
+  example_top.high_to_low -d-> example_top.low_level : put(ll_txn)
+  example_top.low_level -u-> example_top.low_to_high : put(ll_txn)
+  example_top.low_to_high -u-> example_top.high_level : put(txn)
+  example_top.high_to_low -r-> example_top.low_to_high : put(txn)
+  example_top.low_to_high -l-> example_top.high_to_low : put(txn)
+
+  @enduml
+#+end_src
+
+#+RESULTS:
+[[file:example/build/example.svg]]
 
 * Coding Style
 
