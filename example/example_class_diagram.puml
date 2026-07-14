@@ -1,0 +1,28 @@
+@startuml
+!theme toy
+!include ../btl.puml!
+package example_tb {
+  class TxnLowLevel extends btl.Transaction
+  class HighLevel extends btl.Component {
+    +write_reg()
+    +write()
+    +read_reg()
+    +read()
+  }
+  class HighToLow extends btl.Component 
+  class LowToHigh extends btl.Component
+  class LowLevel extends btl.Component {
+    btl::ByteQ memory
+  }
+}
+package example_regs {
+  class ExampleRegs extends btl_regs.AddrMap
+}
+class "example_top: module" as example_top
+LowLevel *-- ExampleRegs
+example_top *-- LowLevel
+example_top *-- LowToHigh
+example_top *-- HighToLow
+example_top *-- HighLevel
+example_top *-- ExampleRegs
+@enduml

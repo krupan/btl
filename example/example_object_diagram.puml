@@ -1,0 +1,20 @@
+@startuml
+!theme toy
+package "example_top: module" {
+  object "initial block"
+  object "ll_txn: TxnLowLevel" as TLL
+  object "txn: btl.Transaction" as T
+  object "low_level: LowLevel" as LL
+  object "low_to_high: LowToHigh" as LTH
+  object "high_to_low: HighToLow" as HTL
+  object "high_level: HighLevel" as HL
+}
+' Relationships
+"initial block" -d-> HL : write(), read(), etc.
+HL -d-> HTL : put(txn)
+HTL -d-> LL : put(ll_txn)
+LL -u-> LTH : put(ll_txn)
+LTH -u-> HL : put(txn)
+HTL -r-> LTH : put(txn)
+LTH -l-> HTL : put(txn)
+@enduml

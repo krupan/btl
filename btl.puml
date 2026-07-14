@@ -1,0 +1,31 @@
+@startuml
+  package btl {
+    class Transaction
+    class ResponseTracker {
+      Transaction missing_responses[$]
+      +end_of_test()
+      #add_missing_response()
+      #is_missing_response()
+      #bit get_missing_response()
+      #update_missing_rsp()
+      #get_missing_sub_rsp()
+      #update_missing_sub_rsp()
+      #is_missing_sub_rsps()
+      #sub_rsps_complete()
+    }
+    class Component extends ResponseTracker {
+      +add_subscriber(Component)
+      +put(Transaction)
+      +run()
+    }
+  }
+
+  package btl_regs {
+    class Field
+    class Reg
+    class AddrMap
+  }
+  AddrMap *-- Reg
+  Reg *-- Field
+
+@enduml
