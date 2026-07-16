@@ -31,7 +31,7 @@ class ResponseTracker;
                                               output int index);
         int results[$];
         results = missing_responses.find_index(rsp)
-            with (rsp.requester_id == rsp_in.requester_id);
+            with (rsp.tag == rsp_in.tag);
         case(results.size())
             0: return 0;
             1: begin

@@ -50,7 +50,6 @@ package example_tb;
             // delay
             #5;
             if(example_regs.addr_inside(req.address)) begin
-                bit success;
                 btl::Value value;
                 value = btl::byteq_to_value(req.data);
                 example_regs.reg_write(req.address, value);
@@ -131,16 +130,13 @@ package example_tb;
     // converts TxnLowLevel objects to high-level Transaction objects
     class LowToHigh extends btl::Component;
 
-        task handle_incomplete_rsp(btl::Transaction rsp);
-            add_missing_response(rsp);
-        endtask
-
         task handle_rsp(TxnLowLevel rsp_in);
             // find corresponding INCOMPLETE_RSP
             int unsigned index;
             bit success;
             success = get_missing_sub_rsp(rsp_in, index);
             if(!success) begin
+                // we can ignore this response
                 return;
             end
             update_missing_sub_rsp(index, rsp_in);
@@ -195,7 +191,7 @@ package example_tb;
                     continue;
                 end
                 $display("\nLowToHigh got:\n", txn_in.sprint());
-                handle_incomplete_rsp(txn_in);
+                add_missing_response(rsp);
                 continue;
             end
         endtask
@@ -204,18 +200,13 @@ package example_tb;
     // converts high-level Transaction objects to TxnLowLevel objects
     class HighToLow extends btl::Component;
 
-        task handle_incomplete_rsp(btl::Transaction rsp);
-            $display("HighToLow: handle_incomplete_rsp not implemented");
-        endtask
-
         task handle_rsp(btl::Transaction rsp);
             $display("HighToLow: handle_rsp not implemented");
         endtask
 
         task handle_write(btl::Transaction req);
-            int unsigned data_count;
+            int unsigned data_count = req.data_size;
             int unsigned previous_data_index;
-            data_count = req.data_size;
             previous_data_index = 0;
             while(data_count > 0) begin
                 TxnLowLevel ll_req = new(req.base_type);
@@ -245,7 +236,7 @@ package example_tb;
             previous_data_index = 0;
             incomplete_rsp.origin = "HighToLow";
             incomplete_rsp.requester_id = req.id;
-            incomplete_rsp.data_size = data_count;
+            incomplete_rsp.data_size = req.data_size;
             while(data_count > 0) begin
                 TxnLowLevel ll_req = new(req.base_type);
                 TxnLowLevel expected_cpl = new(btl::INCOMPLETE_RSP);
@@ -261,11 +252,6 @@ package example_tb;
                 expected_cpl.data_size = ll_req.data_size;
                 incomplete_rsp.add_missing_response(expected_cpl);
 
-                if(ll_req.base_type == btl::WRITE_REQ) begin
-                    for(int i = 0; i < ll_req.data_size; i++) begin
-                        ll_req.data.push_back(req.data.pop_front());
-                    end
-                end
                 data_count -= ll_req.data_size;
                 reqs_to_send.push_back(ll_req);
             end
@@ -304,7 +290,7 @@ package example_tb;
                 if(txn_in.origin == "LowToHigh") begin
                     if(txn_in.base_type == btl::INCOMPLETE_RSP) begin
                         $display("\nHighToLow got:\n", txn_in.sprint());
-                        handle_incomplete_rsp(txn_in);
+                        add_missing_response(txn_in);
                         continue;
                     end
                     // ignore all other types from LowToHigh

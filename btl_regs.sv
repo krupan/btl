@@ -110,6 +110,11 @@ package btl_regs;
             return out;
         endfunction
 
+        function btl::Value read_field_by_name(string name);
+            btl::Field field = field_by_name(name);
+            return field.read();
+        endfunction
+
         function void write(btl::Value val);
             foreach(fields[i]) begin
                 Field f = fields[i];
@@ -184,6 +189,11 @@ package btl_regs;
         function btl::Value reg_read(btl::Address addr);
             assert(regs.exists(addr) != 0);
             return regs[addr].read();
+        endfunction
+
+        function btl::Value reg_read_by_name(string name);
+            Reg register = reg_by_name(name);
+            return register.read();
         endfunction
     endclass : AddrMap
 endpackage : btl_regs

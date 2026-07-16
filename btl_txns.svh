@@ -7,16 +7,17 @@ typedef enum {
 
 class Transaction extends ResponseTracker;
     BaseTxnType base_type;
-    int unsigned id;
-    int unsigned requester_id;
+    Value src_id;
+    Value dest_id;
+    Value tag;
     Address address;
     ByteQ data;
-    int unsigned data_size; // number of bytes
+    // number of bytes
+    int unsigned data_size;
     string origin;
 
     function new(BaseTxnType type_in);
         base_type = type_in;
-        id = $urandom;
     endfunction
 
     protected function string base_type_str();
@@ -33,12 +34,14 @@ class Transaction extends ResponseTracker;
         return "----------------------------------------";
     endfunction
 
+    // This is the function you want to override in your sub classes
+    // of Transaction
     virtual function string sprint_body();
         string str = "";
         str = {str, "type: ", base_type_str, "\n"};
         str = {str, "origin: ", origin, "\n"};
-        str = {str, $sformatf("id: %0d\n", id)};
-        str = {str, $sformatf("requester_id: %0d\n", requester_id)};
+        str = {str, $sformatf("src_id: %0d\n", src_id)};
+        str = {str, $sformatf("dest_id: %0d\n", dest_id)};
         str = {str, $sformatf("address: 0x%0x\n", address)};
         str = {str, $sformatf("data size: %0d\n", data_size)};
         str = {str, $sformatf("data bytes: %p\n", data)};
