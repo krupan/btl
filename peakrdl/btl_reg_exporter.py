@@ -23,7 +23,9 @@ class BtlRegDescriptor(ExporterSubcommandPlugin):
     def add_exporter_arguments(self, arg_group: "argparse.ArgumentParser"):
         pass
 
-    def do_export(self, top_node: "AddrmapNode", options: "argparse.Namespace"):
+    def do_export(
+        self, top_node: "AddrmapNode", options: "argparse.Namespace"
+    ):
         btl_reg_exporter = BtlRegExporter()
         btl_reg_exporter.export(top_node, options.output)
 
@@ -116,7 +118,9 @@ class BtlRegExporter:
 
     def process_reg(self, reg, level):
         name = reg.get_property("name")
-        reg_lines = [f"{indent(level)}begin // {name}, offset {reg.address_offset}"]
+        reg_lines = [
+            f"{indent(level)}begin // {name}, offset {reg.address_offset}"
+        ]
         level += 1
         reg_lines.extend(self.declare_register(reg, level))
         reg_lines.append(f"{indent(level)}btl_regs::Fields f;")
@@ -130,7 +134,8 @@ class BtlRegExporter:
                     + self.field_header_comment(len(field_dec_start), widths)
                 )
             reg_lines.append(
-                f"{indent(level)}{field_dec_start}" + self.declare_field(field, widths)
+                f"{indent(level)}{field_dec_start}"
+                + self.declare_field(field, widths)
             )
         reg_lines.append(f"{indent(level)}{reg_inst_name(reg)}.add_fields(f);")
         reg_lines.append(
@@ -144,24 +149,31 @@ class BtlRegExporter:
         output = []
         if nested_classes:
             output.append("")
-            for nc in nested_classes:
-                output.append(f"{indent(level)}foreach({nc.inst_name}[i]) begin")
-                level +=1
-                output.append(f"{indent(level)}{nc.inst_name}[i] = new('h{nc.raw_address_offset:x} * {nc.array_stride}, {nc.size});")
-                level -= 1
-                output.append(f"{indent(level)}end")
+        for nc in nested_classes:
+            output.append(f"{indent(level)}foreach({nc.inst_name}[i]) begin")
+            level += 1
+            output.append(
+                f"{indent(level)}{nc.inst_name}[i] = "
+                f"new('h{nc.raw_address_offset:x} * {nc.array_stride}, "
+                f"{nc.size});"
+            )
+            level -= 1
+            output.append(f"{indent(level)}end")
+        if nested_classes:
             output.append("")
         return output
 
     def instantiate_nested_classes(self, level, nested_classes):
         output = []
-        if(nested_classes):
+        if nested_classes:
             output.append("")
             output.append(f"{indent(level)}// nested classes")
-            for nc in nested_classes:
-                output.append(
-                    f"{indent(level)}{self.make_class_name(nc)} {nc.inst_name}{nc.array_dimensions};"
-                )
+        for nc in nested_classes:
+            output.append(
+                f"{indent(level)}{self.make_class_name(nc)} {nc.inst_name}"
+                f"{nc.array_dimensions};"
+            )
+        if nested_classes:
             output.append("")
         return output
 
@@ -194,7 +206,9 @@ class BtlRegExporter:
         cls.append(f"{indent(level)}endfunction : new")
 
         level -= 1
-        cls.append(f"{indent(level)}endclass : {self.make_class_name(addrmap)}")
+        cls.append(
+            f"{indent(level)}endclass : {self.make_class_name(addrmap)}"
+        )
         return cls
 
     def export(self, node, path):
@@ -212,7 +226,8 @@ class BtlRegExporter:
 
         if not isinstance(node, AddrmapNode):
             raise TypeError(
-                f"'node' argument expects type AddrmapNode or MemNode. Got '{type(node).__name__}'"
+                f"'node' argument expects type AddrmapNode or MemNode. Got "
+                f"'{type(node).__name__}'"
             )
         classes = [
             [
