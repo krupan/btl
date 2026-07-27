@@ -62,7 +62,8 @@ package btl_regs;
         endfunction
     endclass : Field
 
-    typedef Field Fields[btl::Value];
+    // the "Address" is really just an index into the array
+    typedef Field Fields[btl::Address];
 
     class Reg;
         const string name;
@@ -127,14 +128,13 @@ package btl_regs;
         endfunction
     endclass : Reg
 
-    // index is a register offset
-    typedef Reg Regs[btl::Address];
-
     class AddrMap;
         btl::Address base_addr;
         int unsigned size_bytes;
         string name;
-        Regs regs;
+        AddrMap sub_maps[$];
+        // index is a register offset
+        Reg regs[btl::Address];
 
         function new(btl::Address base_addr,
                      int unsigned size_bytes);

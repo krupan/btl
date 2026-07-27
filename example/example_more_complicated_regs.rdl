@@ -1,0 +1,91 @@
+reg pcie_rbar_ext_cap_header_t {
+    field { sw = r; hw = w; } cap_id[15:0] = 16'h0015;
+    field { sw = r; hw = w; } cap_ver[19:16] = 4'h1;
+    field { sw = r; hw = w; } next_cap[31:20] = 12'h000;
+};
+
+// 7.8.6 - Resizable BAR (Extended Capability ID 0015h). One capability and
+// control DWORD pair is present for each implemented Resizable BAR.
+regfile pcie_resizable_bar_entry_t {
+    reg {
+        name = "Resizable BAR Capability";
+        field { name = "Reserved"; sw = r; hw = w; } rsvd0[3:0] = 4'h0;    
+        field { name = "Supported Sizes"; desc = "Bit n indicates support for size 2^(n+20) bytes"; sw = r; hw = w; } supported_sizes[31:4] = 28'h0;
+    } cap @ 0x00;
+    reg {
+        name = "Resizable BAR Control";
+        field { name = "BAR Index"; sw = r; hw = w; } bar_index[2:0] = 3'h0;
+        field { name = "Reserved"; sw = r; } rsvd0[4:3] = 2'h0;
+        field { name = "Number of Resizable BARs"; sw = r; hw = w; } num_bars[7:5] = 3'h0;
+        field { name = "BAR Size"; sw = rw; hw = w; } bar_size[13:8] = 4'h0;
+        field { name = "Supported Sizes Above 128 TB"; sw = r; hw = w; } supported_sizes_high[31:14] = 18'h0;
+    } control @ 0x04;
+};
+
+addrmap pcie_resizable_bar_ext_cap {
+    name = "Resizable BAR Extended Capability";
+    pcie_rbar_ext_cap_header_t header @ 0x00;
+    pcie_resizable_bar_entry_t bar[6] @ 0x04 += 0x08;
+};
+
+addrmap pcie_config_space {
+    name = "PCIe Configuration Space";
+    desc = "PCI Express Type 0 Configuration Space Header";
+    
+    // Define onwrite property for RW1C (Read/Write 1 to Clear) behavior
+    // When software writes 1, the bit is cleared; writing 0 has no effect
+    
+    // Device and Vendor ID Register (Offset 0x00)
+    reg {
+        name = "Device and Vendor ID";
+        desc = "Identifies the device and vendor";
+        
+        field {
+            name = "Vendor ID";
+            desc = "Vendor identification assigned by PCI-SIG";
+            sw = r;
+            hw = w;
+        } vendor_id[15:0] = 16'h0;
+        
+        field {
+            name = "Device ID";
+            desc = "Device identification assigned by vendor";
+            sw = r;
+            hw = w;
+        } device_id[31:16] = 16'h0;
+    } dev_vendor_id @ 0x00;
+    
+    // Class Code and Revision ID (Offset 0x08)
+    reg {
+        name = "Revision ID and Class Code";
+        
+        field {
+            name = "Revision ID";
+            sw = r;
+            hw = w;
+        } revision_id[7:0] = 8'h00;
+        
+        field {
+            name = "Programming Interface";
+            sw = r;
+            hw = w;
+        } prog_if[15:8] = 8'h00;
+        
+        field {
+            name = "Sub-Class Code";
+            sw = r;
+            hw = w;
+        } sub_class[23:16] = 8'h00;
+        
+        field {
+            name = "Base Class Code";
+            sw = r;
+            hw = w;
+        } base_class[31:24] = 8'h00;
+    } rev_class @ 0x08;
+};
+
+addrmap pcie {
+    pcie_resizable_bar_ext_cap resizable_bar_ext_cap;
+    pcie_config_space config_space;
+};
