@@ -1,5 +1,5 @@
 from systemrdl import rdltypes
-from systemrdl.node import AddrmapNode, RegfileNode, RootNode
+from systemrdl.node import AddrmapNode, RegfileNode, RegNode, RootNode
 
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 
@@ -177,19 +177,21 @@ class BtlRegExporter:
             output.append("")
         return output
 
-    def process_addrmap(self, addrmap, level):
+    def process_btl_subclass(self, node, level):
+        base_class = "btl_regs::AddrMap"
+        if isinstance(node, RegNode):
+            base_class = "btl_regs::Reg"
         cls = [
-            f"{indent(level)}class {self.make_class_name(addrmap)} extends "
-            "btl_regs::AddrMap;"
+            f"{indent(level)}class {self.make_class_name(node)} extends "
+            f"{base_class};"
         ]
-        # too bad addrmap.addrmaps() and addrmap.regfiles() don't
-        # exist
         level += 1
         nested_classes = []
-        for child in addrmap.children():
-            if isinstance(child, (AddrmapNode, RegfileNode)):
+        for child in node.children():
+            if isinstance(child, (AddrmapNode, RegfileNode, RegNode)):
                 nested_classes.append(child)
-                cls.extend(self.process_addrmap(child, level))
+                cls.append("")
+                cls.extend(self.process_btl_subclass(child, level))
         cls.extend(self.instantiate_nested_classes(level, nested_classes))
         cls.append(
             f"{indent(level)}function new(btl::Address base_addr, int unsigned "
@@ -197,17 +199,17 @@ class BtlRegExporter:
         )
         level += 1
         cls.append(f"{indent(level)}super.new(base_addr, size_bytes);")
-        cls.append(f'{indent(level)}name = "{addrmap.get_property("name")}";')
-        cls.extend(self.initialize_nested_classes(level, nested_classes))
+        cls.append(f'{indent(level)}name = "{node.get_property("name")}";')
 
-        for reg in addrmap.registers():
-            cls.extend(self.process_reg(reg, level))
+        # for reg in node.registers():
+        #     cls.extend(self.process_reg(reg, level))
+        cls.extend(self.initialize_nested_classes(level, nested_classes))
         level -= 1
         cls.append(f"{indent(level)}endfunction : new")
 
         level -= 1
         cls.append(
-            f"{indent(level)}endclass : {self.make_class_name(addrmap)}"
+            f"{indent(level)}endclass : {self.make_class_name(node)}"
         )
         return cls
 
@@ -236,7 +238,7 @@ class BtlRegExporter:
                 f"// from {source_file}\n\n",
             ]
         ]
-        classes.append(self.process_addrmap(node, 0))
+        classes.append(self.process_btl_subclass(node, 0))
         with open(path, "w", encoding="utf-8") as output:
             for cls in classes:
                 output.write("\n".join(cls))
