@@ -55,7 +55,7 @@ class BtlRegExporter:
         info_str = f"{indent(level)}level {level}: {type(node).__name__}: "
         info_str += f"{node.inst_name}{array_ind}"
         if hasattr(node, "address_offset"):
-            info_str += f", offset: {node.address_offset}"
+            info_str += f", offset: 'h{node.address_offset:x}"
         if hasattr(node, "lsb"):
             info_str += f", bits: [{node.msb}:{node.lsb}]"
         return info_str
@@ -112,14 +112,14 @@ class BtlRegExporter:
         out.append(f"{indent(level)}btl_regs::Reg {reg_inst_name(reg)} = new(")
         level += 1
         out.append(f'{indent(level)}.name_in("{reg_inst_name(reg)}"),')
-        out.append(f"{indent(level)}.offset_in({reg.address_offset}),")
+        out.append(f"{indent(level)}.offset_in('h{reg.address_offset:x}),")
         out.append(f"{indent(level)}.size_bytes_in({reg.size}));")
         return out
 
     def process_reg(self, reg, level):
         name = reg.get_property("name")
         reg_lines = [
-            f"{indent(level)}begin // {name}, offset {reg.address_offset}"
+            f"{indent(level)}begin // {name}, offset 'h{reg.address_offset:x}"
         ]
         level += 1
         reg_lines.extend(self.declare_register(reg, level))
@@ -139,7 +139,7 @@ class BtlRegExporter:
             )
         reg_lines.append(f"{indent(level)}{reg_inst_name(reg)}.add_fields(f);")
         reg_lines.append(
-            f"{indent(level)}regs[{reg.address_offset}] = {reg_inst_name(reg)};"
+            f"{indent(level)}regs['h{reg.address_offset:x}] = {reg_inst_name(reg)};"
         )
         level -= 1
         reg_lines.append(f"{indent(level)}end")
@@ -154,7 +154,7 @@ class BtlRegExporter:
             level += 1
             output.append(
                 f"{indent(level)}{nc.inst_name}[i] = "
-                f"new('h{nc.raw_address_offset:x} * {nc.array_stride}, "
+                f"new('h{nc.raw_address_offset:x} + (i * {nc.array_stride}), "
                 f"{nc.size});"
             )
             level -= 1
@@ -229,10 +229,11 @@ class BtlRegExporter:
                 f"'node' argument expects type AddrmapNode or MemNode. Got "
                 f"'{type(node).__name__}'"
             )
+        source_file = path.replace('.svh', '.rdl')
         classes = [
             [
                 "// generated with peakrdl btl-reg-exporter",
-                f"// from {path}\n\n",
+                f"// from {source_file}\n\n",
             ]
         ]
         classes.append(self.process_addrmap(node, 0))
