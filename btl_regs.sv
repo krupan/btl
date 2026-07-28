@@ -67,16 +67,16 @@ package btl_regs;
 
     class Reg;
         const string name;
-        const btl::Value offset;
         const int unsigned size_bytes;
+        const btl::Value offset;
         Fields fields;
 
         function new(string name_in,
-                     btl::Address offset_in,
-                     int unsigned size_bytes_in);
+                     int unsigned size_bytes_in,
+                     btl::Address offset_in);
             name = name_in;
-            offset = offset_in;
             size_bytes = size_bytes_in;
+            offset = offset_in;
         endfunction
 
         function void add_fields(Fields fields_in);
@@ -136,8 +136,7 @@ package btl_regs;
         // index is a register offset
         Reg regs[btl::Address];
 
-        function new(btl::Address base_addr,
-                     int unsigned size_bytes);
+        function new(int unsigned size_bytes, btl::Address base_addr);
             this.base_addr = base_addr;
             this.size_bytes = size_bytes;
         endfunction

@@ -1,5 +1,11 @@
 from systemrdl import rdltypes
-from systemrdl.node import AddrmapNode, RegfileNode, RegNode, RootNode
+from systemrdl.node import (
+    AddrmapNode,
+    FieldNode,
+    RegfileNode,
+    RegNode,
+    RootNode,
+)
 
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 
@@ -9,11 +15,173 @@ def indent(level):
     return " " * indent_amount * level
 
 
-def reg_inst_name(reg):
-    name = reg.inst_name
-    if hasattr(reg, "current_idx") and reg.current_idx:
-        name += f"_{reg.current_idx[0]}"
-    return name
+def make_class_name(node):
+    return node.inst_name.title().replace("_", "")
+
+
+def attr_str(field):
+    mapping = {
+        rdltypes.AccessType.r: "btl_regs::RO",
+        rdltypes.AccessType.rw: "btl_regs::RW",
+        rdltypes.AccessType.w: "btl_regs::WO",
+    }
+    if field.get_property("onwrite") == rdltypes.OnWriteType.woclr:
+        return "btl_regs::RW1C"
+    return mapping[field.get_property("sw")]
+
+
+def reset_str(field):
+    reset = int(field.get_property("reset"))
+    return f"'h{reset:x}"
+
+
+def get_addrmap_constructor_params(addrmap, offset):
+    return f"{addrmap.size}, 'h{addrmap.raw_address_offset:x}{offset});"
+
+
+def get_reg_constructor_params(reg, offset):
+    name = reg.get_property("name")
+    # you need to use raw_address_offset in case its an array
+    return f'"{name}", {reg.size}, \'h{reg.raw_address_offset:x}{offset});'
+
+
+def get_field_constructor_params(field):
+    name = field.get_property("name")
+    attr = attr_str(field)
+    reset = reset_str(field)
+    return f'"{name}", {attr}, {reset}, {field.msb}, {field.lsb});'
+
+
+def construct(member, level):
+    array_ind = ""
+    offset = ""
+    if not isinstance(member, FieldNode) and member.array_stride:
+        array_ind = "[i]"
+        offset = f"+ (i * {member.array_stride})"
+    line = f"{indent(level)}{member.inst_name}{array_ind} = new("
+    if isinstance(member, (AddrmapNode, RegfileNode)):
+        return line + get_addrmap_constructor_params(member, offset)
+    if isinstance(member, RegNode):
+        return line + get_reg_constructor_params(member, offset)
+    if isinstance(member, FieldNode):
+        return line + get_field_constructor_params(member)
+    assert 0
+
+
+def construct_members(members, level):
+    output = []
+    for m in members:
+        if not isinstance(m, FieldNode) and m.array_stride:
+            output.append(f"{indent(level)}foreach({m.inst_name}[i]) begin")
+            level += 1
+            output.append(construct(m, level))
+            level -= 1
+            output.append(f"{indent(level)}end")
+        else:
+            output.append(construct(m, level))
+    return output
+
+
+def declare_field_member(member, level):
+    return f"{indent(level)}btl_regs::Field {member.inst_name};"
+
+
+def declare_simple_member(member, level):
+    line = f"{indent(level)}{make_class_name(member)} {member.inst_name}"
+    if member.array_stride:
+        line += f"{member.array_dimensions}"
+    return line + ";"
+
+
+def declare_class_members(members, level):
+    output = []
+    if members:
+        output.append(f"{indent(level)}// class members")
+    for m in members:
+        if isinstance(m, FieldNode):
+            output.append(declare_field_member(m, level))
+        else:
+            output.append(declare_simple_member(m, level))
+    return output
+
+
+def get_base_class(node):
+    if isinstance(node, RegNode):
+        return "btl_regs::Reg"
+    return "btl_regs::AddrMap"
+
+
+def declare_constructor(node, level):
+    output = []
+    if isinstance(node, RegNode):
+        output.append(f"{indent(level)}function new(string name,")
+        output.append(f"{indent(level)}             int unsigned size_bytes,")
+        output.append(f"{indent(level)}             btl::Address offset);")
+        level += 1
+        output.append(f"{indent(level)}super.new(name, size_bytes, offset);")
+    else:
+        output.append(
+            f"{indent(level)}function new(btl::Address base_addr, int unsigned size_bytes);"
+        )
+        level += 1
+        output.append(f"{indent(level)}super.new(base_addr, size_bytes);")
+        output.append(f'{indent(level)}name = "{node.get_property("name")}";')
+    return output
+
+
+def declare_btl_subclass(node, level):
+    cls = [
+        f"{indent(level)}class {make_class_name(node)} extends "
+        f"{get_base_class(node)};"
+    ]
+    level += 1
+    class_members = []
+    for child in node.children():
+        class_members.append(child)
+        if isinstance(child, (AddrmapNode, RegfileNode, RegNode)):
+            cls.extend(declare_btl_subclass(child, level))
+    cls.extend(declare_class_members(class_members, level))
+    cls.extend(declare_constructor(node, level))
+    level += 1
+
+    cls.extend(construct_members(class_members, level))
+    level -= 1
+    cls.append(f"{indent(level)}endfunction : new")
+
+    level -= 1
+    cls.append(f"{indent(level)}endclass : {make_class_name(node)}")
+    return cls
+
+
+def export(node, path):
+    """
+    Parameters
+    ----------
+    node: AddrmapNode
+        Top-level SystemRDL node to export.
+    path:
+        Path to save the exported SystemVerilog file.
+    """
+    # If it is the root node, skip to top addrmap
+    if isinstance(node, RootNode):
+        node = node.top
+
+    if not isinstance(node, AddrmapNode):
+        raise TypeError(
+            f"'node' argument expects type AddrmapNode or MemNode. Got "
+            f"'{type(node).__name__}'"
+        )
+    source_file = path.replace(".svh", ".rdl")
+    classes = [
+        [
+            "// generated with peakrdl btl-reg-exporter",
+            f"// from {source_file}\n\n",
+        ]
+    ]
+    classes.append(declare_btl_subclass(node, 0))
+    with open(path, "w", encoding="utf-8") as output:
+        for cls in classes:
+            output.write("\n".join(cls))
 
 
 class BtlRegDescriptor(ExporterSubcommandPlugin):
@@ -26,219 +194,4 @@ class BtlRegDescriptor(ExporterSubcommandPlugin):
     def do_export(
         self, top_node: "AddrmapNode", options: "argparse.Namespace"
     ):
-        btl_reg_exporter = BtlRegExporter()
-        btl_reg_exporter.export(top_node, options.output)
-
-
-class BtlRegExporter:
-    def make_class_name(self, node):
-        return node.inst_name.title().replace("_", "")
-
-    def attr_str(self, field):
-        mapping = {
-            rdltypes.AccessType.r: "btl_regs::RO",
-            rdltypes.AccessType.rw: "btl_regs::RW",
-            rdltypes.AccessType.w: "btl_regs::WO",
-        }
-        if field.get_property("onwrite") == rdltypes.OnWriteType.woclr:
-            return "btl_regs::RW1C"
-        return mapping[field.get_property("sw")]
-
-    def reset_str(self, field):
-        reset = int(field.get_property("reset"))
-        return f"'h{reset:x}"
-
-    def get_info_str(self, node, level):
-        array_ind = ""
-        if hasattr(node, "current_idx") and node.current_idx:
-            array_ind = f"{node.current_idx}"
-        info_str = f"{indent(level)}level {level}: {type(node).__name__}: "
-        info_str += f"{node.inst_name}{array_ind}"
-        if hasattr(node, "address_offset"):
-            info_str += f", offset: 'h{node.address_offset:x}"
-        if hasattr(node, "lsb"):
-            info_str += f", bits: [{node.msb}:{node.lsb}]"
-        return info_str
-
-    def calculate_column_widths(self, fields):
-        widths = {}
-        widths["lsb"] = max(len(str(f.lsb)) for f in fields)
-        widths["lsb"] = max(widths["lsb"], len("lsb"))
-
-        widths["size"] = max(len(str(f.width)) for f in fields)
-        widths["size"] = max(widths["size"], len("size"))
-
-        widths["name"] = max(len(f'"{f.inst_name}"') for f in fields)
-        widths["name"] = max(widths["name"], len("name"))
-
-        widths["attr"] = max(len(self.attr_str(f)) for f in fields)
-        widths["attr"] = max(widths["attr"], len("attr"))
-
-        widths["reset"] = max(len(self.reset_str(f)) for f in fields)
-        widths["reset"] = max(widths["reset"], len("reset"))
-        return widths
-
-    def get_field_dec_start(self, idx, num_fields):
-        idx_str = str(idx).rjust(len(str(num_fields - 1)))
-        return f"f[{idx_str}] = new("
-
-    def field_header_comment(self, len_field_dec, widths):
-        comment = "//"
-        h_lsb = "lsb".rjust(widths["lsb"] + len_field_dec - len(comment))
-        h_size = "size".rjust(widths["size"])
-        h_name = "name".center(widths["name"])
-        h_reset = "reset".rjust(widths["reset"])
-        h_attr = "attr"
-        # Notice the explicit spacing around the commas here
-        output = f"{comment}{h_lsb}, {h_size}, {h_name} , {h_reset} ,"
-        return output + f" {h_attr}"
-
-    def declare_field(self, field, widths):
-        # ljust = left align, rjust = right align
-        lsb_str = str(field.lsb).rjust(widths["lsb"])
-        size_str = str(field.width).rjust(widths["size"])
-        name_str = f'"{field.inst_name}"'.ljust(widths["name"])
-        reset_str = self.reset_str(field).rjust(widths["reset"])
-        attr_str = self.attr_str(field).ljust(widths["attr"])
-        line = f"{lsb_str}, {size_str}, {name_str} , "
-        line += f"{reset_str} , {attr_str});"
-        return line
-
-    def declare_register(self, reg, level):
-        out = []
-        desc = reg.get_property("desc")
-        if desc:
-            out.append(f"{indent(level)}// {desc}")
-        out.append(f"{indent(level)}btl_regs::Reg {reg_inst_name(reg)} = new(")
-        level += 1
-        out.append(f'{indent(level)}.name_in("{reg_inst_name(reg)}"),')
-        out.append(f"{indent(level)}.offset_in('h{reg.address_offset:x}),")
-        out.append(f"{indent(level)}.size_bytes_in({reg.size}));")
-        return out
-
-    def process_reg(self, reg, level):
-        name = reg.get_property("name")
-        reg_lines = [
-            f"{indent(level)}begin // {name}, offset 'h{reg.address_offset:x}"
-        ]
-        level += 1
-        reg_lines.extend(self.declare_register(reg, level))
-        reg_lines.append(f"{indent(level)}btl_regs::Fields f;")
-        fields = reg.fields()
-        widths = self.calculate_column_widths(fields)
-        for idx, field in enumerate(fields):
-            field_dec_start = self.get_field_dec_start(idx, len(fields))
-            if idx == 0:
-                reg_lines.append(
-                    f"{indent(level)}"
-                    + self.field_header_comment(len(field_dec_start), widths)
-                )
-            reg_lines.append(
-                f"{indent(level)}{field_dec_start}"
-                + self.declare_field(field, widths)
-            )
-        reg_lines.append(f"{indent(level)}{reg_inst_name(reg)}.add_fields(f);")
-        reg_lines.append(
-            f"{indent(level)}regs['h{reg.address_offset:x}] = {reg_inst_name(reg)};"
-        )
-        level -= 1
-        reg_lines.append(f"{indent(level)}end")
-        return reg_lines
-
-    def initialize_nested_classes(self, level, nested_classes):
-        output = []
-        if nested_classes:
-            output.append("")
-        for nc in nested_classes:
-            output.append(f"{indent(level)}foreach({nc.inst_name}[i]) begin")
-            level += 1
-            output.append(
-                f"{indent(level)}{nc.inst_name}[i] = "
-                f"new('h{nc.raw_address_offset:x} + (i * {nc.array_stride}), "
-                f"{nc.size});"
-            )
-            level -= 1
-            output.append(f"{indent(level)}end")
-        if nested_classes:
-            output.append("")
-        return output
-
-    def instantiate_nested_classes(self, level, nested_classes):
-        output = []
-        if nested_classes:
-            output.append("")
-            output.append(f"{indent(level)}// nested classes")
-        for nc in nested_classes:
-            output.append(
-                f"{indent(level)}{self.make_class_name(nc)} {nc.inst_name}"
-                f"{nc.array_dimensions};"
-            )
-        if nested_classes:
-            output.append("")
-        return output
-
-    def process_btl_subclass(self, node, level):
-        base_class = "btl_regs::AddrMap"
-        if isinstance(node, RegNode):
-            base_class = "btl_regs::Reg"
-        cls = [
-            f"{indent(level)}class {self.make_class_name(node)} extends "
-            f"{base_class};"
-        ]
-        level += 1
-        nested_classes = []
-        for child in node.children():
-            if isinstance(child, (AddrmapNode, RegfileNode, RegNode)):
-                nested_classes.append(child)
-                cls.append("")
-                cls.extend(self.process_btl_subclass(child, level))
-        cls.extend(self.instantiate_nested_classes(level, nested_classes))
-        cls.append(
-            f"{indent(level)}function new(btl::Address base_addr, int unsigned "
-            "size_bytes);"
-        )
-        level += 1
-        cls.append(f"{indent(level)}super.new(base_addr, size_bytes);")
-        cls.append(f'{indent(level)}name = "{node.get_property("name")}";')
-
-        # for reg in node.registers():
-        #     cls.extend(self.process_reg(reg, level))
-        cls.extend(self.initialize_nested_classes(level, nested_classes))
-        level -= 1
-        cls.append(f"{indent(level)}endfunction : new")
-
-        level -= 1
-        cls.append(
-            f"{indent(level)}endclass : {self.make_class_name(node)}"
-        )
-        return cls
-
-    def export(self, node, path):
-        """
-        Parameters
-        ----------
-        node: AddrmapNode
-            Top-level SystemRDL node to export.
-        path:
-            Path to save the exported SystemVerilog file.
-        """
-        # If it is the root node, skip to top addrmap
-        if isinstance(node, RootNode):
-            node = node.top
-
-        if not isinstance(node, AddrmapNode):
-            raise TypeError(
-                f"'node' argument expects type AddrmapNode or MemNode. Got "
-                f"'{type(node).__name__}'"
-            )
-        source_file = path.replace('.svh', '.rdl')
-        classes = [
-            [
-                "// generated with peakrdl btl-reg-exporter",
-                f"// from {source_file}\n\n",
-            ]
-        ]
-        classes.append(self.process_btl_subclass(node, 0))
-        with open(path, "w", encoding="utf-8") as output:
-            for cls in classes:
-                output.write("\n".join(cls))
+        export(top_node, options.output)
