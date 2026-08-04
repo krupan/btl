@@ -7,28 +7,50 @@ package btl_regs;
         RW1C
     } FieldAttrib;
 
+    typedef enum {
+        FIELD,
+        REG,
+        ADDRMAP
+    } ObjType;
+
+    class Base;
+        const string name;
+        Base children[$];
+        // this is just so we don't have to cast
+        ObjType my_type;
+        btl::Address base_addr;
+        const btl::Value offset;
+        const int unsigned size_bytes;
+
+        virtual function void reset();
+            foreach(children[i]) begin
+                children[i].reset();
+            end
+        endfunction
+    endclass
+
     // named after SystemRDL things
-    class Field;
+    class Field extends Base;
         const int unsigned lsb;
         const int unsigned msb;
         const int unsigned size_bits;
-        const string name;
         const btl::Value reset_value;
         const FieldAttrib attrib;
         btl::Value value;
 
-        function new(int unsigned lsb_in,
-                     int unsigned size_bits_in,
-                     string name_in,
+        function new(string name_in,
+                     FieldAttrib attrib_in,
                      btl::Value reset_value_in,
-                     FieldAttrib attrib_in);
-            lsb = lsb_in;
-            size_bits = size_bits_in;
-            msb = lsb + (size_bits - 1);
+                     int unsigned msb_in,
+                     int unsigned lsb_in);
             name = name_in;
-            reset_value = reset_value_in;
             attrib = attrib_in;
+            reset_value = reset_value_in;
+            lsb = lsb_in;
+            msb = msb_in;
+            size_bits = msb - lsb + 1;
             reset();
+            my_type = FIELD;
         endfunction
 
         function void reset();
@@ -62,63 +84,32 @@ package btl_regs;
         endfunction
     endclass : Field
 
-    // the "Address" is really just an index into the array
-    typedef Field Fields[btl::Address];
+    class Reg extends Base;
 
-    class Reg;
-        const string name;
-        const int unsigned size_bytes;
-        const btl::Value offset;
-        Fields fields;
-
-        function new(string name_in,
-                     int unsigned size_bytes_in,
-                     btl::Address offset_in);
-            name = name_in;
-            size_bytes = size_bytes_in;
-            offset = offset_in;
-        endfunction
-
-        function void add_fields(Fields fields_in);
-            fields = fields_in;
-        endfunction
-
-        function void field_by_name(string name, ref Field field_ref);
-            foreach(fields[i]) begin
-                if(fields[i].name == name) begin
-                    field_ref = fields[i];
-                    return;
-                end
-            end
-            assert(0);
-        endfunction
-
-        function void reset();
-            foreach(fields[i]) begin
-                fields[i].reset();
-            end
+        function new(string name,
+                     int unsigned size_bytes,
+                     btl::Address offset);
+            this.name = name;
+            this.size_bytes = size_bytes;
+            this.offset = offset;
+            my_type = REG;
         endfunction
 
         function btl::Value read();
             btl::Value out;
-            foreach(fields[i]) begin
-                btl::Value field_value = fields[i].read();
-                for(int unsigned j = fields[i].lsb;
-                    j <= fields[i].msb; j++) begin
-                    out[j] = field_value[j - fields[i].lsb];
+            foreach(children[i]) begin
+                btl::Value field_value = children[i].read();
+                for(btl::Address j = children[i].lsb; j <= children[i].msb; j++)
+                begin
+                    out[j] = field_value[j - children[i].lsb];
                 end
             end
             return out;
         endfunction
 
-        function btl::Value read_field_by_name(string name);
-            btl::Field field = field_by_name(name);
-            return field.read();
-        endfunction
-
         function void write(btl::Value val);
-            foreach(fields[i]) begin
-                Field f = fields[i];
+            foreach(children[i]) begin
+                Field f = children[i];
                 btl::Value val_slice;
                 for(int j = 0; j < f.size_bits; j++) begin
                     val_slice[j] = val[j+f.lsb];
@@ -129,37 +120,17 @@ package btl_regs;
     endclass : Reg
 
     class AddrMap;
-        btl::Address base_addr;
-        int unsigned size_bytes;
-        string name;
-        AddrMap sub_maps[$];
-        // index is a register offset
-        Reg regs[btl::Address];
 
         function new(int unsigned size_bytes, btl::Address base_addr);
             this.base_addr = base_addr;
             this.size_bytes = size_bytes;
-        endfunction
-
-        function void add_reg(Reg new_reg);
-            regs[new_reg.offset] = new_reg;
-        endfunction
-
-        function void check_size();
-            int unsigned size;
-            foreach(regs[i]) begin
-                size += regs[i].size_bytes;
-            end
-            assert(size == size_bytes);
-        endfunction
-
-        function void reset();
-            foreach(regs[i]) begin
-                regs[i].reset();
-            end
+            my_type = ADDRMAP;
         endfunction
 
         function bit addr_inside(btl::Address address);
+            if(my_type == FIELD) begin
+                assert(0);
+            end
             if(address < base_addr) begin
                 return 0;
             end
@@ -169,30 +140,24 @@ package btl_regs;
             return 1;
         endfunction
 
-        function void reg_by_name(string name, ref Reg reg_ref);
-            foreach(regs[i]) begin
-                if(regs[i].name == name) begin
-                    reg_ref = regs[i];
-                    return;
+        function bit get_reg_by_addr(btl::Address addr,
+                                     ref btl_regs::Reg the_reg);
+            if(!addr_inside(addr)) begin
+                return 0;
+            end
+            foreach(children[i]) begin
+                if(children[i].my_type == REG) begin
+                    btl::Address address = base_addr + children[i].offset;
+                    if(addr == address) begin
+                        the_reg = children[i];
+                        return 1;
+                    end
+                end
+                if(children[i].get_reg_by_addr(addr, the_reg)) begin
+                    return 1;
                 end
             end
-            assert(0);
-        endfunction
-
-        function void reg_write(btl::Address addr,
-                                btl::Value value);
-            assert(regs.exists(addr) != 0);
-            regs[addr].write(value);
-        endfunction
-
-        function btl::Value reg_read(btl::Address addr);
-            assert(regs.exists(addr) != 0);
-            return regs[addr].read();
-        endfunction
-
-        function btl::Value reg_read_by_name(string name);
-            Reg register = reg_by_name(name);
-            return register.read();
+            return 0;
         endfunction
     endclass : AddrMap
 endpackage : btl_regs

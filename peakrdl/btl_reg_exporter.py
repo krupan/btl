@@ -1,3 +1,5 @@
+import os
+
 from systemrdl import rdltypes
 from systemrdl.node import (
     AddrmapNode,
@@ -55,17 +57,19 @@ def get_field_constructor_params(field):
 def construct(member, level):
     array_ind = ""
     offset = ""
+    output = []
     if not isinstance(member, FieldNode) and member.array_stride:
         array_ind = "[i]"
         offset = f"+ (i * {member.array_stride})"
     line = f"{indent(level)}{member.inst_name}{array_ind} = new("
     if isinstance(member, (AddrmapNode, RegfileNode)):
-        return line + get_addrmap_constructor_params(member, offset)
+        output.append(line + get_addrmap_constructor_params(member, offset))
     if isinstance(member, RegNode):
-        return line + get_reg_constructor_params(member, offset)
+        output.append(line + get_reg_constructor_params(member, offset))
     if isinstance(member, FieldNode):
-        return line + get_field_constructor_params(member)
-    assert 0
+        output.append(line + get_field_constructor_params(member))
+    output.append(f"{indent(level)}children.push_back({member.inst_name});")
+    return output
 
 
 def construct_members(members, level):
@@ -74,11 +78,11 @@ def construct_members(members, level):
         if not isinstance(m, FieldNode) and m.array_stride:
             output.append(f"{indent(level)}foreach({m.inst_name}[i]) begin")
             level += 1
-            output.append(construct(m, level))
+            output.extend(construct(m, level))
             level -= 1
             output.append(f"{indent(level)}end")
         else:
-            output.append(construct(m, level))
+            output.extend(construct(m, level))
     return output
 
 
@@ -149,7 +153,7 @@ def declare_btl_subclass(node, level):
     cls.append(f"{indent(level)}endfunction : new")
 
     level -= 1
-    cls.append(f"{indent(level)}endclass : {make_class_name(node)}")
+    cls.append(f"{indent(level)}endclass : {make_class_name(node)}\n")
     return cls
 
 
@@ -179,6 +183,9 @@ def export(node, path):
         ]
     ]
     classes.append(declare_btl_subclass(node, 0))
+    if os.path.isdir(path):
+        filename = node.get_property("name")
+        path += f"/{filename}.svh"
     with open(path, "w", encoding="utf-8") as output:
         for cls in classes:
             output.write("\n".join(cls))
