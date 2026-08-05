@@ -159,5 +159,23 @@ package btl_regs;
             end
             return 0;
         endfunction
+
+        function bit reg_write(btl::Address addr, btl::Value val);
+            Reg register;
+            if(get_reg_by_addr(addr, register)) begin
+                register.write(val);
+                return 1;
+            end
+            return 0;
+        endfunction
+
+        function bit reg_read(btl::Address addr, output btl::Value val);
+            Reg register;
+            if(get_reg_by_addr(addr, register)) begin
+                val = register.read();
+                return 1;
+            end
+            return 0;
+        endfunction
     endclass : AddrMap
 endpackage : btl_regs
