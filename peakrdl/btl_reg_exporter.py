@@ -1,4 +1,5 @@
 import os
+import sys
 
 from systemrdl import rdltypes
 from systemrdl.node import (
@@ -33,7 +34,12 @@ def attr_str(field):
 
 
 def reset_str(field):
-    reset = int(field.get_property("reset"))
+    reset = field.get_property("reset")
+    if reset is None:
+        print(
+            f"ERROR: no reset property for {field.inst_name}", file=sys.stderr
+        )
+        sys.exit(-1)
     return f"'h{reset:x}"
 
 
@@ -68,7 +74,9 @@ def construct(member, level):
         output.append(line + get_reg_constructor_params(member, offset))
     if isinstance(member, FieldNode):
         output.append(line + get_field_constructor_params(member))
-    output.append(f"{indent(level)}children.push_back({member.inst_name});")
+    output.append(
+        f"{indent(level)}children.push_back({member.inst_name}{array_ind});"
+    )
     return output
 
 
@@ -184,8 +192,7 @@ def export(node, path):
     ]
     classes.append(declare_btl_subclass(node, 0))
     if os.path.isdir(path):
-        filename = node.get_property("name")
-        path += f"/{filename}.svh"
+        path += f"/{node.inst_name}.svh"
     with open(path, "w", encoding="utf-8") as output:
         for cls in classes:
             output.write("\n".join(cls))
