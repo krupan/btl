@@ -1,3 +1,7 @@
+// NOTE: we can't name anything reg (because that's a SystemVerilog
+// keyword) or register (because that's a C++ keyword and verilator
+// complains)
+
 package btl_regs;
     typedef enum {
         RW,
@@ -98,10 +102,13 @@ package btl_regs;
         function btl::Value read();
             btl::Value out;
             foreach(children[i]) begin
-                btl::Value field_value = children[i].read();
-                for(btl::Address j = children[i].lsb; j <= children[i].msb; j++)
+                Field field;
+                btl::Value field_value;
+                assert($cast(field, children[i]));
+                field_value = field.read();
+                for(btl::Address j = field.lsb; j <= field.msb; j++)
                 begin
-                    out[j] = field_value[j - children[i].lsb];
+                    out[j] = field_value[j - field.lsb];
                 end
             end
             return out;
@@ -109,18 +116,18 @@ package btl_regs;
 
         function void write(btl::Value val);
             foreach(children[i]) begin
-                Field f = children[i];
+                Field field;
                 btl::Value val_slice;
-                for(int j = 0; j < f.size_bits; j++) begin
-                    val_slice[j] = val[j+f.lsb];
+                assert($cast(field, children[i]));
+                for(int j = 0; j < field.size_bits; j++) begin
+                    val_slice[j] = val[j + field.lsb];
                 end
-                f.write(val_slice);
+                field.write(val_slice);
             end
         endfunction
     endclass : Reg
 
-    class AddrMap;
-
+    class AddrMap extends Base;
         function new(int unsigned size_bytes, btl::Address base_addr);
             this.base_addr = base_addr;
             this.size_bytes = size_bytes;
@@ -146,14 +153,16 @@ package btl_regs;
                 return 0;
             end
             foreach(children[i]) begin
+                AddrMap addrmap;
                 if(children[i].my_type == REG) begin
                     btl::Address address = base_addr + children[i].offset;
                     if(addr == address) begin
-                        the_reg = children[i];
+                        assert($cast(the_reg, children[i]));
                         return 1;
                     end
                 end
-                if(children[i].get_reg_by_addr(addr, the_reg)) begin
+                assert($cast(addrmap, children[i]));
+                if(addrmap.get_reg_by_addr(addr, the_reg)) begin
                     return 1;
                 end
             end
@@ -161,18 +170,18 @@ package btl_regs;
         endfunction
 
         function bit reg_write(btl::Address addr, btl::Value val);
-            Reg register;
-            if(get_reg_by_addr(addr, register)) begin
-                register.write(val);
+            Reg the_reg;
+            if(get_reg_by_addr(addr, the_reg)) begin
+                the_reg.write(val);
                 return 1;
             end
             return 0;
         endfunction
 
         function bit reg_read(btl::Address addr, output btl::Value val);
-            Reg register;
-            if(get_reg_by_addr(addr, register)) begin
-                val = register.read();
+            Reg the_reg;
+            if(get_reg_by_addr(addr, the_reg)) begin
+                val = the_reg.read();
                 return 1;
             end
             return 0;
