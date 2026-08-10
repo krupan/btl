@@ -10,18 +10,18 @@ peakrdl \
     --peakrdl-cfg ../pyproject.toml \
     btl-reg-exporter \
     example_regs.rdl \
-    -o $BUILD_DIR/example_regs.sv
+    -o $BUILD_DIR/example_regs.svh
 
 # compile simulation
 verilator \
     -Mdir $BUILD_DIR/ \
     -j "$(nproc)" \
     -I../ \
+    -Ibuild/ \
     --binary \
     -o $SIM_EXECUTABLE \
     ../btl.sv \
     ../btl_regs.sv \
-    $BUILD_DIR/example_regs.sv \
     example_tb.sv \
     example_top.sv
 

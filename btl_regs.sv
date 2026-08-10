@@ -24,7 +24,7 @@ package btl_regs;
         ObjType my_type;
         btl::Address base_addr;
         const btl::Value offset;
-        const int unsigned size_bytes;
+        const btl::Value size_bytes;
 
         virtual function void reset();
             foreach(children[i]) begin
@@ -35,9 +35,9 @@ package btl_regs;
 
     // named after SystemRDL things
     class Field extends Base;
-        const int unsigned lsb;
-        const int unsigned msb;
-        const int unsigned size_bits;
+        const btl::Value lsb;
+        const btl::Value msb;
+        const btl::Value size_bits;
         const btl::Value reset_value;
         const FieldAttrib attrib;
         btl::Value value;
@@ -45,8 +45,8 @@ package btl_regs;
         function new(string name_in,
                      FieldAttrib attrib_in,
                      btl::Value reset_value_in,
-                     int unsigned msb_in,
-                     int unsigned lsb_in);
+                     btl::Value msb_in,
+                     btl::Value lsb_in);
             name = name_in;
             attrib = attrib_in;
             reset_value = reset_value_in;
@@ -71,7 +71,7 @@ package btl_regs;
                     return;
                 end
                 RW1C: begin
-                    for(int i = 0; i < size_bits; i++) begin
+                    for(int i = 0; i < size_bits[31:0]; i++) begin
                         if(val[i] == 1) begin
                             value[i] = 0;
                         end
@@ -91,7 +91,7 @@ package btl_regs;
     class Reg extends Base;
 
         function new(string name,
-                     int unsigned size_bytes,
+                     btl::Value size_bytes,
                      btl::Address offset);
             this.name = name;
             this.size_bytes = size_bytes;
@@ -106,9 +106,9 @@ package btl_regs;
                 btl::Value field_value;
                 assert($cast(field, children[i]));
                 field_value = field.read();
-                for(btl::Address j = field.lsb; j <= field.msb; j++)
-                begin
-                    out[j] = field_value[j - field.lsb];
+                for(btl::Value j = field.lsb; j <= field.msb; j++) begin
+                    int field_ind = j[31:0] - field.lsb[31:0];
+                    out[j[31:0]] = field_value[field_ind];
                 end
             end
             return out;
@@ -119,8 +119,8 @@ package btl_regs;
                 Field field;
                 btl::Value val_slice;
                 assert($cast(field, children[i]));
-                for(int j = 0; j < field.size_bits; j++) begin
-                    val_slice[j] = val[j + field.lsb];
+                for(int j = 0; j < field.size_bits[31:0]; j++) begin
+                    val_slice[j] = val[j + field.lsb[31:0]];
                 end
                 field.write(val_slice);
             end
@@ -128,7 +128,7 @@ package btl_regs;
     endclass : Reg
 
     class AddrMap extends Base;
-        function new(int unsigned size_bytes, btl::Address base_addr);
+        function new(btl::Value size_bytes, btl::Address base_addr);
             this.base_addr = base_addr;
             this.size_bytes = size_bytes;
             my_type = ADDRMAP;
@@ -141,7 +141,7 @@ package btl_regs;
             if(address < base_addr) begin
                 return 0;
             end
-            if(address > (base_addr + ({32'h0, size_bytes}-1))) begin
+            if(address > (base_addr + size_bytes - 1)) begin
                 return 0;
             end
             return 1;

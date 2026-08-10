@@ -1,5 +1,7 @@
 package example_tb;
 
+    `include "build/example_regs.svh"
+
     localparam MAX_LL_PAYLOAD_BYTES = 256;
 
     typedef enum {
@@ -36,10 +38,10 @@ package example_tb;
         // memory model very specific to this simple example
         // testbench, associative array of ByteQ's, indexed by address
         btl::ByteQ memory[btl::Address];
-        example_regs::ExampleRegs example_regs;
+        ExampleRegs example_regs;
 
-        function new();
-            super.new();
+        function new(btl::StringQ log_tags);
+            super.new(log_tags);
             example_regs = new(0, 8);
             example_regs.reset();
         endfunction
@@ -52,10 +54,10 @@ package example_tb;
             if(example_regs.addr_inside(req.address)) begin
                 btl::Value value;
                 value = btl::byteq_to_value(req.data);
-                example_regs.reg_write(req.address, value);
+                assert(example_regs.reg_write(req.address, value));
                 return;
             end
-            for(int i = 0; i < req.data_size; i++) begin
+            for(btl::Value i = 0; i < req.data_size; i++) begin
                 byte unsigned data_byte = req.data.pop_front();
                 data.push_back(data_byte);
             end
@@ -70,12 +72,13 @@ package example_tb;
             rsp = new(btl::RSP);
             rsp.sub_type = CPL;
             rsp.origin = "LowLevel";
-            rsp.requester_id = req.id;
+            rsp.src_id = req.dest_id;
+            rsp.tag = req.tag;
             if(example_regs.addr_inside(req.address)) begin
                 btl::Value value;
-                value = example_regs.reg_read(req.address);
+                assert(example_regs.reg_read(req.address, value));
                 $display("LowLevel reading register");
-                for(int i = 0; i < req.data_size; i++) begin
+                for(int i = 0; i < req.data_size[31:0]; i++) begin
                     rsp.data.push_back(value[7:0]);
                     rsp.data_size++;
                     value = value >> 8;
@@ -84,7 +87,7 @@ package example_tb;
             else begin
                 $display("LowLevel reading memory");
                 assert(memory.exists(req.address) != 0);
-                for(int i = 0; i < req.data_size; i++) begin
+                for(int i = 0; i < req.data_size[31:0]; i++) begin
                     rsp.data[i] = memory[req.address][i];
                     rsp.data_size++;
                 end
@@ -130,9 +133,13 @@ package example_tb;
     // converts TxnLowLevel objects to high-level Transaction objects
     class LowToHigh extends btl::Component;
 
+        function new(btl::StringQ log_tags);
+            super.new(log_tags);
+        endfunction
+
         task handle_rsp(TxnLowLevel rsp_in);
             // find corresponding INCOMPLETE_RSP
-            int unsigned index;
+            btl::Value index;
             bit success;
             success = get_missing_sub_rsp(rsp_in, index);
             if(!success) begin
@@ -191,7 +198,7 @@ package example_tb;
                     continue;
                 end
                 $display("\nLowToHigh got:\n", txn_in.sprint());
-                add_missing_response(rsp);
+                add_missing_response(txn_in);
                 continue;
             end
         endtask
@@ -200,19 +207,24 @@ package example_tb;
     // converts high-level Transaction objects to TxnLowLevel objects
     class HighToLow extends btl::Component;
 
+        function new(btl::StringQ log_tags);
+            super.new(log_tags);
+        endfunction
+
         task handle_rsp(btl::Transaction rsp);
             $display("HighToLow: handle_rsp not implemented");
         endtask
 
         task handle_write(btl::Transaction req);
-            int unsigned data_count = req.data_size;
-            int unsigned previous_data_index;
+            btl::Value data_count = req.data_size;
+            btl::Value previous_data_index;
             previous_data_index = 0;
             while(data_count > 0) begin
                 TxnLowLevel ll_req = new(req.base_type);
                 ll_req.sub_type = MEM_WRITE;
                 ll_req.origin = "HighToLow";
-                ll_req.id = $urandom;
+                ll_req.src_id = {32'h0, $urandom};
+                ll_req.tag = {$urandom, $urandom};
                 /* verilator lint_off WIDTHEXPAND */
                 ll_req.address = req.address + previous_data_index;
                 ll_req.data_size = btl::min(data_count, MAX_LL_PAYLOAD_BYTES);
@@ -230,25 +242,28 @@ package example_tb;
             // send out
             btl::Transaction incomplete_rsp = new(btl::INCOMPLETE_RSP);
             btl::Transaction reqs_to_send[$];
-            int unsigned data_count;
-            int unsigned previous_data_index;
+            btl::Value data_count;
+            btl::Value previous_data_index;
             data_count = req.data_size;
             previous_data_index = 0;
             incomplete_rsp.origin = "HighToLow";
-            incomplete_rsp.requester_id = req.id;
+            incomplete_rsp.src_id = req.dest_id;
+            incomplete_rsp.tag = req.tag;
             incomplete_rsp.data_size = req.data_size;
             while(data_count > 0) begin
                 TxnLowLevel ll_req = new(req.base_type);
                 TxnLowLevel expected_cpl = new(btl::INCOMPLETE_RSP);
                 ll_req.sub_type = MEM_READ;
                 ll_req.origin = "HighToLow";
-                ll_req.id = $urandom;
+                ll_req.src_id = $urandom;
+                ll_req.tag = $urandom;
                 ll_req.address = req.address + previous_data_index;
                 ll_req.data_size = btl::min(data_count, MAX_LL_PAYLOAD_BYTES);
                 previous_data_index += ll_req.data_size;
 
                 expected_cpl.sub_type = CPL;
-                expected_cpl.requester_id = ll_req.id;
+                expected_cpl.src_id = ll_req.dest_id;
+                expected_cpl.tag = ll_req.tag;
                 expected_cpl.data_size = ll_req.data_size;
                 incomplete_rsp.add_missing_response(expected_cpl);
 
@@ -308,16 +323,20 @@ package example_tb;
 
     class HighLevel extends btl::Component;
 
-        task write_reg(btl::Address addr,
-                       int unsigned reg_size_bytes,
+        function new(btl::StringQ log_tags);
+            super.new(log_tags);
+        endfunction
+
+        task reg_write(btl::Address addr,
+                       btl::Value reg_size_bytes,
                        btl::Value value);
             btl::ByteQ data = btl::value_to_byteq(value);
             data = data[0:reg_size_bytes];
             write(addr, data);
         endtask
 
-        task read_reg(btl::Address addr,
-                      int unsigned reg_size_bytes,
+        task reg_read(btl::Address addr,
+                      btl::Value reg_size_bytes,
                       output btl::Value value);
             btl::ByteQ data;
             read(addr, reg_size_bytes, data);
@@ -327,7 +346,8 @@ package example_tb;
 
         task write(btl::Address addr, btl::ByteQ data);
             btl::Transaction req = new(btl::WRITE_REQ);
-            req.id = $urandom;
+            req.src_id = $urandom;
+            req.tag = $urandom;
             req.origin = "HighLevel";
             req.address = addr;
             req.data_size = data.size();
@@ -336,17 +356,19 @@ package example_tb;
         endtask
 
         task read(btl::Address addr,
-                  int unsigned data_size,
+                  btl::Value data_size,
                   output btl::ByteQ data);
             btl::Transaction req = new(btl::READ_REQ);
             btl::Transaction rsp = new(btl::INCOMPLETE_RSP);
 
-            req.id = $urandom;
+            req.src_id = $urandom;
+            req.tag = $urandom;
             req.origin = "HighLevel";
             req.address = addr;
             req.data_size = data_size;
 
-            rsp.requester_id = req.id;
+            rsp.dest_id = req.src_id;
+            rsp.tag = req.tag;
             rsp.origin = "HighLevel";
             rsp.data_size = data_size;
             add_missing_response(rsp);

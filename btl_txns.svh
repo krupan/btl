@@ -13,7 +13,7 @@ class Transaction extends ResponseTracker;
     Address address;
     ByteQ data;
     // number of bytes
-    int unsigned data_size;
+    Value data_size;
     string origin;
 
     function new(BaseTxnType type_in);

@@ -3,6 +3,7 @@ package btl;
     typedef longint unsigned Value;
     typedef longint unsigned Address;
     typedef byte unsigned ByteQ[$];
+    typedef string StringQ[$];
     let max(a,b) = (a > b) ? a : b;
     let min(a,b) = (a < b) ? a : b;
 
@@ -21,14 +22,16 @@ package btl;
     `include "btl_txns.svh"
 
     virtual class TxnIDTracker;
-        bit ids_in_flight[int unsigned];
+        bit ids_in_flight[Value];
     endclass
 
     virtual class Component extends ResponseTracker;
         mailbox #(Transaction) txns_in;
         Component subscribers[$];
+        StringQ log_tags;
 
-        function new();
+        function new(StringQ log_tags);
+            this.log_tags = log_tags;
             txns_in = new();
         endfunction
 

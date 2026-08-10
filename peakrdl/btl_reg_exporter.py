@@ -127,16 +127,16 @@ def declare_constructor(node, level):
     output = []
     if isinstance(node, RegNode):
         output.append(f"{indent(level)}function new(string name,")
-        output.append(f"{indent(level)}             int unsigned size_bytes,")
+        output.append(f"{indent(level)}             btl::Value size_bytes,")
         output.append(f"{indent(level)}             btl::Address offset);")
         level += 1
         output.append(f"{indent(level)}super.new(name, size_bytes, offset);")
     else:
         output.append(
-            f"{indent(level)}function new(btl::Address base_addr, int unsigned size_bytes);"
+            f"{indent(level)}function new(btl::Address base_addr, btl::Value size_bytes);"
         )
         level += 1
-        output.append(f"{indent(level)}super.new(base_addr, size_bytes);")
+        output.append(f"{indent(level)}super.new(size_bytes, base_addr);")
         output.append(f'{indent(level)}name = "{node.get_property("name")}";')
     return output
 
