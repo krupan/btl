@@ -26,6 +26,10 @@ package btl_regs;
         const btl::Value offset;
         const btl::Value size_bytes;
 
+        function new(string name);
+            this.name = name;
+        endfunction
+
         virtual function void reset();
             foreach(children[i]) begin
                 children[i].reset();
@@ -42,16 +46,16 @@ package btl_regs;
         const FieldAttrib attrib;
         btl::Value value;
 
-        function new(string name_in,
-                     FieldAttrib attrib_in,
-                     btl::Value reset_value_in,
-                     btl::Value msb_in,
-                     btl::Value lsb_in);
-            name = name_in;
-            attrib = attrib_in;
-            reset_value = reset_value_in;
-            lsb = lsb_in;
-            msb = msb_in;
+        function new(string name,
+                     FieldAttrib attrib,
+                     btl::Value reset_value,
+                     btl::Value msb,
+                     btl::Value lsb);
+            super.new(name);
+            this.attrib = attrib;
+            this.reset_value = reset_value;
+            this.lsb = lsb;
+            this.msb = msb;
             size_bits = msb - lsb + 1;
             reset();
             my_type = FIELD;
@@ -93,7 +97,7 @@ package btl_regs;
         function new(string name,
                      btl::Value size_bytes,
                      btl::Address offset);
-            this.name = name;
+            super.new(name);
             this.size_bytes = size_bytes;
             this.offset = offset;
             my_type = REG;
@@ -128,16 +132,14 @@ package btl_regs;
     endclass : Reg
 
     class AddrMap extends Base;
-        function new(btl::Value size_bytes, btl::Address base_addr);
+        function new(string name, btl::Value size_bytes, btl::Address base_addr);
+            super.new(name);
             this.base_addr = base_addr;
             this.size_bytes = size_bytes;
             my_type = ADDRMAP;
         endfunction
 
         function bit addr_inside(btl::Address address);
-            if(my_type == FIELD) begin
-                assert(0);
-            end
             if(address < base_addr) begin
                 return 0;
             end
@@ -155,8 +157,8 @@ package btl_regs;
             foreach(children[i]) begin
                 AddrMap addrmap;
                 if(children[i].my_type == REG) begin
-                    btl::Address address = base_addr + children[i].offset;
-                    if(addr == address) begin
+                    btl::Address reg_addr = base_addr + children[i].offset;
+                    if(addr == reg_addr) begin
                         assert($cast(the_reg, children[i]));
                         return 1;
                     end

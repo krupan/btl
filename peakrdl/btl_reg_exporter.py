@@ -44,7 +44,11 @@ def reset_str(field):
 
 
 def get_addrmap_constructor_params(addrmap, offset):
-    return f"{addrmap.size}, 'h{addrmap.raw_address_offset:x}{offset});"
+    name = addrmap.get_property("name")
+    return (
+        f'"{name}", {addrmap.size}, '
+        f"'h{addrmap.raw_address_offset:x}{offset});"
+    )
 
 
 def get_reg_constructor_params(reg, offset):
@@ -133,11 +137,13 @@ def declare_constructor(node, level):
         output.append(f"{indent(level)}super.new(name, size_bytes, offset);")
     else:
         output.append(
-            f"{indent(level)}function new(btl::Address base_addr, btl::Value size_bytes);"
+            f"{indent(level)}function new(string name, "
+            f"btl::Address base_addr, btl::Value size_bytes);"
         )
         level += 1
-        output.append(f"{indent(level)}super.new(size_bytes, base_addr);")
-        output.append(f'{indent(level)}name = "{node.get_property("name")}";')
+        output.append(
+            f"{indent(level)}super.new(name, size_bytes, base_addr);"
+        )
     return output
 
 
