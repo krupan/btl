@@ -138,7 +138,7 @@ def declare_constructor(node, level):
     else:
         output.append(
             f"{indent(level)}function new(string name, "
-            f"btl::Address base_addr, btl::Value size_bytes);"
+            f"btl::Value size_bytes, btl::Address base_addr);"
         )
         level += 1
         output.append(

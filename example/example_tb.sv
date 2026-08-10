@@ -42,7 +42,7 @@ package example_tb;
 
         function new(btl::StringQ log_tags);
             super.new(log_tags);
-            example_regs = new("example registers", 0, 8);
+            example_regs = new("example registers", 8, 0);
             example_regs.reset();
         endfunction
 

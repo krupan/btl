@@ -18,7 +18,7 @@ module example_top;
         low_to_high = new({"low_to_high"});
         high_to_low = new({"hith_to_low"});
         high_level = new({"high_level"});
-        shadow_regs = new("shadow example registers", 0, 8);
+        shadow_regs = new("shadow example registers", 8, 0);
 
         low_level.add_subscriber(low_to_high);
         low_to_high.add_subscriber(high_level);
