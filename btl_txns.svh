@@ -61,15 +61,15 @@ class Transaction extends ResponseTracker;
     endfunction
 
     // Copies data from all missing responses to this transaction's
-    // data member then deletes its missing_responses list.  Assumes
-    // no INCOMPLETE_RSP transactions are in the missing_responses
+    // data member then deletes its incomplete_responses list.  Assumes
+    // no INCOMPLETE_RSP transactions are in the incomplete_responses
     // list.
     function void rsp_complete();
         base_type = btl::RSP;
-        foreach(missing_responses[i]) begin
-            assert(missing_responses[i].base_type != INCOMPLETE_RSP);
-            data = {data, missing_responses[i].data};
+        foreach(incomplete_responses[i]) begin
+            assert(incomplete_responses[i].base_type != INCOMPLETE_RSP);
+            data = {data, incomplete_responses[i].data};
         end
-        missing_responses.delete();
+        incomplete_responses.delete();
     endfunction
 endclass : Transaction

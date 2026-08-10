@@ -6,37 +6,37 @@ class ResponseTracker;
     // larger than the allowed rsp size).  These are referred to as
     // sub responses (sub_rsp objects).  This is a queue so we know
     // the order of the data in the case of sub_rsp objects.
-    Transaction missing_responses[$];
+    Transaction incomplete_responses[$];
 
     ////////////////////////////////////////////////////////////////////////////
     // rsp methods
     ////////////////////////////////////////////////////////////////////////////
 
-    // Adds INCOMPLETE_RSP to missing_responses list
-    virtual function void add_missing_response(Transaction rsp);
+    // Adds INCOMPLETE_RSP to incomplete_responses list
+    virtual function void add_incomplete_response(Transaction rsp);
         assert(rsp.base_type == INCOMPLETE_RSP);
-        missing_responses.push_back(rsp);
+        incomplete_responses.push_back(rsp);
     endfunction
 
-    // Returns whether rsp matches a missing response in our list
-    virtual function bit is_missing_response(Transaction rsp);
+    // Returns whether rsp matches an incomplete response in our list
+    virtual function bit matches_incomplete_response(Transaction rsp);
         Value unused;
-        return get_missing_response(rsp, unused);
+        return get_incomplete_response(rsp, unused);
     endfunction
 
-    // Outputs the index of the missing response that matches the
+    // Outputs the index of the incomplete response that matches the
     // passed in response.  Probably shouldn't be called except by
-    // is_missing_response and update_missing_rsp functions
-    virtual function bit get_missing_response(Transaction rsp_in,
-                                              output Value index);
+    // matches_incomplete_response and update_incomplete_rsp functions
+    virtual function bit get_incomplete_response(Transaction rsp_in,
+                                                 output Value index);
         int results[$];
-        results = missing_responses.find_index(rsp)
+        results = incomplete_responses.find_index(rsp)
             with (rsp.tag == rsp_in.tag);
         case(results.size())
             0: return 0;
             1: begin
                 index = {32'h0, results[0]};
-                assert(missing_responses[index[31:0]].data_size == rsp_in.data_size);
+                assert(incomplete_responses[index[31:0]].data_size == rsp_in.data_size);
                 return 1;
             end
             // there's a bug in the code if we get here
@@ -44,38 +44,39 @@ class ResponseTracker;
         endcase
     endfunction
 
-    // Updates the missing response that matches the passed in
-    // response from INCOMPLETE_RSP to RSP, copying the data from the
-    // passed in response to the missing response.  Assumes a matching
-    // response exists, which can be verified by calling
-    // get_missing_response first.
-    virtual function void update_missing_rsp(Transaction rsp);
+    // Updates the incomplete response that matches the passed in
+    // response.  Changes type from INCOMPLETE_RSP to RSP, copies the
+    // data from the passed in response to the (formerly) incomplete
+    // response.  Assumes a matching response exists, which can be
+    // verified by calling get_incomplete_response first.
+    virtual function void update_incomplete_rsp(Transaction rsp);
         Value index;
-        bit success = get_missing_response(rsp, index);
+        bit success = get_incomplete_response(rsp, index);
         assert(success);
-        missing_responses[index].base_type = btl::RSP;
-        missing_responses[index].data = rsp.data;
+        incomplete_responses[index].base_type = btl::RSP;
+        incomplete_responses[index].data = rsp.data;
     endfunction
 
-    virtual function void complete_missing_rsp(Transaction rsp);
+    virtual function void complete_incomplete_rsp(Transaction rsp);
         Value index;
-        bit success = get_missing_response(rsp, index);
+        bit success = get_incomplete_response(rsp, index);
         assert(success);
-        missing_responses.delete(index[31:0]);
+        incomplete_responses.delete(index[31:0]);
     endfunction
 
     ////////////////////////////////////////////////////////////////////////////
     // sub response methods
     ////////////////////////////////////////////////////////////////////////////
 
-    // Outputs the index of the missing response that is missing the
-    // passed in sub response and returns 1.  If there is no missing
-    // response missing the passed in sub response, returns 0.
-    virtual function bit get_missing_sub_rsp(Transaction sub_rsp,
-                                             output Value index);
+    // Outputs the index of the incomplete response that is waiting
+    // for the passed in sub response and returns 1.  If there is no
+    // incomplete response waiting for the passed in sub response,
+    // returns 0.
+    virtual function bit get_incomplete_sub_rsp(Transaction sub_rsp,
+                                                output Value index);
         int results[$];
-        results = missing_responses.find_index(rsp)
-            with (rsp.is_missing_response(sub_rsp) == 1);
+        results = incomplete_responses.find_index(rsp)
+            with (rsp.matches_incomplete_response(sub_rsp) == 1);
         assert(results.size() <= 1);
         if(results.size() == 0) begin
             return 0;
@@ -84,21 +85,21 @@ class ResponseTracker;
         return 1;
     endfunction
 
-    // Updates the missing sub response for the missing response at
-    // index from INCOMPLETE_RSP to RSP, copying the data from the
-    // passed in sub response to the missing sub response.  Get index
-    // by calling get_missing_sub_rsp.
-    virtual function void update_missing_sub_rsp(Value index,
-                                                 Transaction sub_rsp);
-        assert(index < {32'h0, missing_responses.size()});
-        missing_responses[index].update_missing_rsp(sub_rsp);
+    // For the incomplete response at index, updates the incomplete
+    // sub response that matches the passed in sub response.  See the
+    // comment for update_incomplete_rsp for more details. Get the
+    // index by calling get_incomplete_sub_rsp.
+    virtual function void update_incomplete_sub_rsp(Value index,
+                                                    Transaction sub_rsp);
+        assert(index < {32'h0, incomplete_responses.size()});
+        incomplete_responses[index].update_incomplete_rsp(sub_rsp);
     endfunction
 
-    // Returns 1 if there are any missing sub responses for the
-    // missing response at the given index.
-    virtual function bit is_missing_sub_rsps(Value index);
-        foreach(missing_responses[index].missing_responses[i]) begin
-            if(missing_responses[index].missing_responses[i].base_type
+    // Returns 1 if there are any incomplete sub responses for the
+    // incomplete response at the given index.
+    virtual function bit are_incomplete_sub_rsps(Value index);
+        foreach(incomplete_responses[index].incomplete_responses[i]) begin
+            if(incomplete_responses[index].incomplete_responses[i].base_type
                 == btl::INCOMPLETE_RSP) begin
                     return 1;
                 end
@@ -106,13 +107,13 @@ class ResponseTracker;
         return 0;
     endfunction
 
-    // Copies data from all missing sub responses to the missing
+    // Copies data from all incomplete sub responses to the incomplete
     // response at index.
     function void sub_rsps_complete(Value index);
-        missing_responses[index].rsp_complete();
+        incomplete_responses[index].rsp_complete();
     endfunction
 
     function void end_of_test();
-        assert(missing_responses.size() == 0);
+        assert(incomplete_responses.size() == 0);
     endfunction
 endclass : ResponseTracker

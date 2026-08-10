@@ -141,22 +141,22 @@ package example_tb;
             // find corresponding INCOMPLETE_RSP
             btl::Value index;
             bit success;
-            success = get_missing_sub_rsp(rsp_in, index);
+            success = get_incomplete_sub_rsp(rsp_in, index);
             if(!success) begin
                 // we can ignore this response
                 return;
             end
-            update_missing_sub_rsp(index, rsp_in);
-            if(is_missing_sub_rsps(index)) begin
+            update_incomplete_sub_rsp(index, rsp_in);
+            if(are_incomplete_sub_rsps(index)) begin
                 // still missing responses
                 return;
             end
             // if we got here, we've gotten all the missing low-level
             // responses that this high-level response needs
             sub_rsps_complete(index);
-            missing_responses[index].origin = "LowToHigh";
-            send_to_subscribers(missing_responses[index]);
-            complete_missing_rsp(missing_responses[index]);
+            incomplete_responses[index].origin = "LowToHigh";
+            send_to_subscribers(incomplete_responses[index]);
+            complete_incomplete_rsp(incomplete_responses[index]);
         endtask
 
         task handle_write(TxnLowLevel req);
@@ -198,7 +198,7 @@ package example_tb;
                     continue;
                 end
                 $display("\nLowToHigh got:\n", txn_in.sprint());
-                add_missing_response(txn_in);
+                add_incomplete_response(txn_in);
                 continue;
             end
         endtask
@@ -265,7 +265,7 @@ package example_tb;
                 expected_cpl.src_id = ll_req.dest_id;
                 expected_cpl.tag = ll_req.tag;
                 expected_cpl.data_size = ll_req.data_size;
-                incomplete_rsp.add_missing_response(expected_cpl);
+                incomplete_rsp.add_incomplete_response(expected_cpl);
 
                 data_count -= ll_req.data_size;
                 reqs_to_send.push_back(ll_req);
@@ -305,7 +305,7 @@ package example_tb;
                 if(txn_in.origin == "LowToHigh") begin
                     if(txn_in.base_type == btl::INCOMPLETE_RSP) begin
                         $display("\nHighToLow got:\n", txn_in.sprint());
-                        add_missing_response(txn_in);
+                        add_incomplete_response(txn_in);
                         continue;
                     end
                     // ignore all other types from LowToHigh
@@ -371,12 +371,12 @@ package example_tb;
             rsp.tag = req.tag;
             rsp.origin = "HighLevel";
             rsp.data_size = data_size;
-            add_missing_response(rsp);
+            add_incomplete_response(rsp);
 
             send_to_subscribers(req);
             wait(rsp.base_type == btl::RSP);
             data = rsp.data;
-            complete_missing_rsp(rsp);
+            complete_incomplete_rsp(rsp);
         endtask
 
         task run();
@@ -388,10 +388,10 @@ package example_tb;
                 if(txn_in.base_type != btl::RSP) begin
                     continue;
                 end
-                if(!is_missing_response(txn_in)) begin
+                if(!matches_incomplete_response(txn_in)) begin
                     continue;
                 end
-                update_missing_rsp(txn_in);
+                update_incomplete_rsp(txn_in);
             end
         endtask
     endclass : HighLevel
