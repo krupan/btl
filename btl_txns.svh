@@ -43,6 +43,7 @@ class Transaction extends ResponseTracker;
         str = {str, $sformatf("src_id: %0d\n", src_id)};
         str = {str, $sformatf("dest_id: %0d\n", dest_id)};
         str = {str, $sformatf("address: 0x%0x\n", address)};
+        str = {str, $sformatf("tag: %0d\n", tag)};
         str = {str, $sformatf("data size: %0d\n", data_size)};
         str = {str, $sformatf("data bytes: %p\n", data)};
         if(data.size() <= 8) begin

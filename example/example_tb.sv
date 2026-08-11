@@ -252,7 +252,7 @@ package example_tb;
             incomplete_rsp.data_size = req.data_size;
             while(data_count > 0) begin
                 TxnLowLevel ll_req = new(req.base_type);
-                TxnLowLevel expected_cpl = new(btl::INCOMPLETE_RSP);
+                TxnLowLevel incomplete_ll_cpl = new(btl::INCOMPLETE_RSP);
                 ll_req.sub_type = MEM_READ;
                 ll_req.origin = "HighToLow";
                 ll_req.src_id = $urandom;
@@ -261,11 +261,11 @@ package example_tb;
                 ll_req.data_size = btl::min(data_count, MAX_LL_PAYLOAD_BYTES);
                 previous_data_index += ll_req.data_size;
 
-                expected_cpl.sub_type = CPL;
-                expected_cpl.src_id = ll_req.dest_id;
-                expected_cpl.tag = ll_req.tag;
-                expected_cpl.data_size = ll_req.data_size;
-                incomplete_rsp.add_incomplete_response(expected_cpl);
+                incomplete_ll_cpl.sub_type = CPL;
+                incomplete_ll_cpl.src_id = ll_req.dest_id;
+                incomplete_ll_cpl.tag = ll_req.tag;
+                incomplete_ll_cpl.data_size = ll_req.data_size;
+                incomplete_rsp.add_incomplete_response(incomplete_ll_cpl);
 
                 data_count -= ll_req.data_size;
                 reqs_to_send.push_back(ll_req);
