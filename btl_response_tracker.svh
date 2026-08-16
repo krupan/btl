@@ -53,7 +53,7 @@ class ResponseTracker;
         Value index;
         bit success = get_incomplete_response(rsp, index);
         assert(success);
-        incomplete_responses[index].base_type = btl::RSP;
+        incomplete_responses[index].base_type = RSP;
         incomplete_responses[index].data = rsp.data;
     endfunction
 
@@ -100,7 +100,7 @@ class ResponseTracker;
     virtual function bit are_incomplete_sub_rsps(Value index);
         foreach(incomplete_responses[index].incomplete_responses[i]) begin
             if(incomplete_responses[index].incomplete_responses[i].base_type
-                == btl::INCOMPLETE_RSP) begin
+                == INCOMPLETE_RSP) begin
                     return 1;
                 end
         end
