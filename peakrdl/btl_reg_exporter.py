@@ -2,13 +2,8 @@ import os
 import sys
 
 from systemrdl import rdltypes
-from systemrdl.node import (
-    AddrmapNode,
-    FieldNode,
-    RegfileNode,
-    RegNode,
-    RootNode,
-)
+from systemrdl.node import (AddrmapNode, FieldNode, RegfileNode, RegNode,
+                            RootNode)
 
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 
@@ -22,7 +17,7 @@ def make_class_name(node):
     return node.inst_name.title().replace("_", "")
 
 
-def attr_str(field):
+def sw_attr_str(field):
     mapping = {
         rdltypes.AccessType.r: "btl_regs::RO",
         rdltypes.AccessType.rw: "btl_regs::RW",
@@ -32,6 +27,13 @@ def attr_str(field):
         return "btl_regs::RW1C"
     return mapping[field.get_property("sw")]
 
+def hw_attr_str(field):
+    mapping = {
+        rdltypes.AccessType.r: "btl_regs::RO",
+        rdltypes.AccessType.rw: "btl_regs::RW",
+        rdltypes.AccessType.w: "btl_regs::WO",
+    }
+    return mapping[field.get_property("hw")]
 
 def reset_str(field):
     reset = field.get_property("reset")
@@ -59,9 +61,10 @@ def get_reg_constructor_params(reg, offset):
 
 def get_field_constructor_params(field):
     name = field.get_property("name")
-    attr = attr_str(field)
+    sw_attr = sw_attr_str(field)
+    hw_attr = hw_attr_str(field)
     reset = reset_str(field)
-    return f'"{name}", {attr}, {reset}, {field.msb}, {field.lsb});'
+    return f'"{name}", {sw_attr}, {hw_attr}, {reset}, {field.msb}, {field.lsb});'
 
 
 def construct(member, level):

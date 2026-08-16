@@ -43,16 +43,19 @@ package btl_regs;
         const btl::Value msb;
         const btl::Value size_bits;
         const btl::Value reset_value;
-        const FieldAttrib attrib;
+        const FieldAttrib sw_attrib;
+        const FieldAttrib hw_attrib;
         btl::Value value;
 
         function new(string name,
-                     FieldAttrib attrib,
+                     FieldAttrib sw_attrib,
+                     FieldAttrib hw_attrib,
                      btl::Value reset_value,
                      btl::Value msb,
                      btl::Value lsb);
             super.new(name);
-            this.attrib = attrib;
+            this.sw_attrib = sw_attrib;
+            this.hw_attrib = hw_attrib;
             this.reset_value = reset_value;
             this.lsb = lsb;
             this.msb = msb;
@@ -70,7 +73,7 @@ package btl_regs;
         endfunction
 
         function void write(btl::Value val);
-            case (attrib)
+            case (sw_attrib)
                 RO: begin
                     return;
                 end
@@ -80,6 +83,20 @@ package btl_regs;
                             value[i] = 0;
                         end
                     end
+                    return;
+                end
+                RW: begin
+                    value = val;
+                end
+                default: begin
+                    assert(0);
+                end
+            endcase
+        endfunction
+
+        function void hw_write(btl::Value val);
+            case (hw_attrib)
+                RO: begin
                     return;
                 end
                 RW: begin
