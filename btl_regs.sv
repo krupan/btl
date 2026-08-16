@@ -20,8 +20,8 @@ package btl_regs;
     class Base;
         const string name;
         Base children[$];
-        // this is just so we don't have to cast
-        ObjType my_type;
+        // this is so we don't have to cast to determine the type
+        const ObjType my_type;
         btl::Address base_addr;
         const btl::Value offset;
         const btl::Value size_bytes;
@@ -156,17 +156,26 @@ package btl_regs;
             end
             foreach(children[i]) begin
                 AddrMap addrmap;
-                if(children[i].my_type == REG) begin
-                    btl::Address reg_addr = base_addr + children[i].offset;
-                    if(addr == reg_addr) begin
-                        assert($cast(the_reg, children[i]));
-                        return 1;
+                case(children[i].my_type)
+                    REG: begin
+                        btl::Address reg_addr = base_addr + children[i].offset;
+                        if(addr == reg_addr) begin
+                            assert($cast(the_reg, children[i]));
+                            return 1;
+                        end
                     end
-                end
-                assert($cast(addrmap, children[i]));
-                if(addrmap.get_reg_by_addr(addr, the_reg)) begin
-                    return 1;
-                end
+                    ADDRMAP: begin
+                        assert($cast(addrmap, children[i]));
+                        if(addrmap.get_reg_by_addr(addr, the_reg)) begin
+                            return 1;
+                        end
+                    end
+                    default: begin
+                        $display("my_type: %s, children[%0d].my_type: %s",
+                        my_type.name, i, children[i].my_type.name);
+                        assert(0);
+                    end
+                endcase
             end
             return 0;
         endfunction
