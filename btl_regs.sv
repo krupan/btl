@@ -23,11 +23,20 @@ package btl_regs;
         // this is so we don't have to cast to determine the type
         const ObjType my_type;
         btl::Address base_addr;
-        const btl::Value offset;
         const btl::Value size_bytes;
+        const btl::Value offset;
 
-        function new(string name);
+        // const members can only be assigned to in the base class
+        // constructor, according to dave_59:
+        // https://stackoverflow.com/a/60803249/27729
+        function new(string name,
+                     ObjType my_type,
+                     btl::Value size_bytes,
+                     btl::Value offset);
             this.name = name;
+            this.my_type = my_type;
+            this.size_bytes = size_bytes;
+            this.offset = offset;
         endfunction
 
         virtual function void reset();
@@ -53,7 +62,7 @@ package btl_regs;
                      btl::Value reset_value,
                      btl::Value msb,
                      btl::Value lsb);
-            super.new(name);
+            super.new(name, FIELD, 0, 0);
             this.sw_attrib = sw_attrib;
             this.hw_attrib = hw_attrib;
             this.reset_value = reset_value;
@@ -61,7 +70,6 @@ package btl_regs;
             this.msb = msb;
             size_bits = msb - lsb + 1;
             reset();
-            my_type = FIELD;
         endfunction
 
         function void reset();
@@ -114,10 +122,7 @@ package btl_regs;
         function new(string name,
                      btl::Value size_bytes,
                      btl::Address offset);
-            super.new(name);
-            this.size_bytes = size_bytes;
-            this.offset = offset;
-            my_type = REG;
+            super.new(name, REG, size_bytes, offset);
         endfunction
 
         function btl::Value read();
@@ -152,10 +157,8 @@ package btl_regs;
         function new(string name,
                      btl::Value size_bytes,
                      btl::Address base_addr);
-            super.new(name);
+            super.new(name, ADDRMAP, size_bytes, 0);
             this.base_addr = base_addr;
-            this.size_bytes = size_bytes;
-            my_type = ADDRMAP;
         endfunction
 
         function bit addr_inside(btl::Address address);
