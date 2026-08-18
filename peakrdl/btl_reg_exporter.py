@@ -24,7 +24,9 @@ def sw_attr_str(field):
         rdltypes.AccessType.w: "btl_regs::WO",
     }
     if field.get_property("onwrite") == rdltypes.OnWriteType.woclr:
-        return "btl_regs::RW1C"
+        return "btl_regs::WOCLR"
+    if field.get_property("onwrite") == rdltypes.OnWriteType.woset:
+        return "btl_regs::WOSET"
     return mapping[field.get_property("sw")]
 
 def hw_attr_str(field):

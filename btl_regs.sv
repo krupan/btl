@@ -4,11 +4,14 @@
 
 package btl_regs;
     typedef enum {
+        // readable and writable
         RW,
+        // read-only
         RO,
-        // PCIe spec uses RW1C for write-one-to-clear registers, so we
-        // will too
-        RW1C
+        // write 1 to clear, writing 0 does nothing
+        WOCLR,
+        // write 1 to set, writing 0 does nothing
+        WOSET
     } FieldAttrib;
 
     typedef enum {
@@ -85,10 +88,18 @@ package btl_regs;
                 RO: begin
                     return;
                 end
-                RW1C: begin
+                WOCLR: begin
                     for(int i = 0; i < size_bits[31:0]; i++) begin
                         if(val[i] == 1) begin
                             value[i] = 0;
+                        end
+                    end
+                    return;
+                end
+                WOSET: begin
+                    for(int i = 0; i < size_bits[31:0]; i++) begin
+                        if(val[i] == 1) begin
+                            value[i] = 1;
                         end
                     end
                     return;
