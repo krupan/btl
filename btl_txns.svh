@@ -1,10 +1,3 @@
-typedef enum {
-    READ_REQ,
-    WRITE_REQ,
-    INCOMPLETE_RSP,
-    RSP
-} BaseTxnType;
-
 class Transaction extends ResponseTracker;
     BaseTxnType base_type;
     Value src_id;

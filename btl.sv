@@ -7,6 +7,13 @@ package btl;
     let max(a,b) = (a > b) ? a : b;
     let min(a,b) = (a < b) ? a : b;
 
+    typedef enum {
+        READ_REQ,
+        WRITE_REQ,
+        INCOMPLETE_RSP,
+        RSP
+    } BaseTxnType;
+
     function Value byteq_to_value(ByteQ data);
         return {data[7], data[6], data[5], data[4],
                 data[3], data[2], data[1], data[0]};
