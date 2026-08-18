@@ -149,7 +149,9 @@ package btl_regs;
     endclass : Reg
 
     class AddrMap extends Base;
-        function new(string name, btl::Value size_bytes, btl::Address base_addr);
+        function new(string name,
+                     btl::Value size_bytes,
+                     btl::Address base_addr);
             super.new(name);
             this.base_addr = base_addr;
             this.size_bytes = size_bytes;
@@ -189,7 +191,7 @@ package btl_regs;
                     end
                     default: begin
                         $display("my_type: %s, children[%0d].my_type: %s",
-                        my_type.name, i, children[i].my_type.name);
+                                 my_type.name, i, children[i].my_type.name);
                         assert(0);
                     end
                 endcase
