@@ -2,8 +2,13 @@ import os
 import sys
 
 from systemrdl import rdltypes
-from systemrdl.node import (AddrmapNode, FieldNode, RegfileNode, RegNode,
-                            RootNode)
+from systemrdl.node import (
+    AddrmapNode,
+    FieldNode,
+    RegfileNode,
+    RegNode,
+    RootNode,
+)
 
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 
@@ -29,6 +34,7 @@ def sw_attr_str(field):
         return "btl_regs::WOSET"
     return mapping[field.get_property("sw")]
 
+
 def hw_attr_str(field):
     mapping = {
         rdltypes.AccessType.r: "btl_regs::RO",
@@ -36,6 +42,7 @@ def hw_attr_str(field):
         rdltypes.AccessType.w: "btl_regs::WO",
     }
     return mapping[field.get_property("hw")]
+
 
 def reset_str(field):
     reset = field.get_property("reset")
@@ -49,16 +56,24 @@ def reset_str(field):
 
 def get_addrmap_constructor_params(addrmap, offset):
     name = addrmap.get_property("name")
+    if addrmap.array_stride:
+        name = f'$sformatf("{name}[%0d]", i)'
+    else:
+        name = f'"{name}"'
     return (
-        f'"{name}", {addrmap.size}, '
+        f"{name}, {addrmap.size}, "
         f"'h{addrmap.raw_address_offset:x}{offset});"
     )
 
 
 def get_reg_constructor_params(reg, offset):
     name = reg.get_property("name")
+    if reg.array_stride:
+        name = f'$sformatf("{name}[%0d]", i)'
+    else:
+        name = f'"{name}"'
     # you need to use raw_address_offset in case its an array
-    return f'"{name}", {reg.size}, \'h{reg.raw_address_offset:x}{offset});'
+    return f"{name}, {reg.size}, 'h{reg.raw_address_offset:x}{offset});"
 
 
 def get_field_constructor_params(field):
@@ -66,26 +81,26 @@ def get_field_constructor_params(field):
     sw_attr = sw_attr_str(field)
     hw_attr = hw_attr_str(field)
     reset = reset_str(field)
-    return f'"{name}", {sw_attr}, {hw_attr}, {reset}, {field.msb}, {field.lsb});'
+    return (
+        f'"{name}", {sw_attr}, {hw_attr}, {reset}, {field.msb}, {field.lsb});'
+    )
 
 
 def construct(member, level):
-    array_ind = ""
+    inst_name = member.inst_name
     offset = ""
     output = []
     if not isinstance(member, FieldNode) and member.array_stride:
-        array_ind = "[i]"
-        offset = f"+ (i * {member.array_stride})"
-    line = f"{indent(level)}{member.inst_name}{array_ind} = new("
+        inst_name += "[i]"
+        offset = f" + (i * {member.array_stride})"
+    line = f"{indent(level)}{inst_name} = new("
     if isinstance(member, (AddrmapNode, RegfileNode)):
         output.append(line + get_addrmap_constructor_params(member, offset))
     if isinstance(member, RegNode):
         output.append(line + get_reg_constructor_params(member, offset))
     if isinstance(member, FieldNode):
         output.append(line + get_field_constructor_params(member))
-    output.append(
-        f"{indent(level)}children.push_back({member.inst_name}{array_ind});"
-    )
+    output.append(f"{indent(level)}children.push_back({inst_name});")
     return output
 
 
