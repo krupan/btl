@@ -164,6 +164,18 @@ package btl_regs;
         endfunction
     endclass : Reg
 
+    class ReservedReg extends btl_regs::Reg;
+        // class members
+        btl_regs::Field reserved;
+        function new(string name,
+                     btl::Value size_bytes,
+                     btl::Address offset);
+            super.new(name, size_bytes, offset);
+            reserved = new("reserved", btl_regs::RO, btl_regs::RO, 'h0, 63, 0);
+            children.push_back(reserved);
+        endfunction : new
+    endclass : ReservedReg
+
     class AddrMap extends Base;
         function new(string name,
                      btl::Value size_bytes,
@@ -174,16 +186,20 @@ package btl_regs;
 
         function bit addr_inside(btl::Address address);
             if(address < base_addr) begin
+                $display("%s: address too low", name);
                 return 0;
             end
             if(address > (base_addr + size_bytes - 1)) begin
+                $display("%s: address too high", name);
                 return 0;
             end
+            $display("%s: address just right", name);
             return 1;
         endfunction
 
         function bit get_reg_by_addr(btl::Address addr,
                                      ref btl_regs::Reg the_reg);
+            ReservedReg reserved;
             if(!addr_inside(addr)) begin
                 return 0;
             end
@@ -204,13 +220,17 @@ package btl_regs;
                         end
                     end
                     default: begin
-                        $display("my_type: %s, children[%0d].my_type: %s",
+                        $display("bug in btl_regs: my_type: %s, children[%0d].my_type: %s",
                                  my_type.name, i, children[i].my_type.name);
                         assert(0);
+                        return 0;
                     end
                 endcase
             end
-            return 0;
+            reserved = new("reserved", 8, addr - base_addr);
+            $display("no register at this address, returning reserved reg");
+            the_reg = reserved;
+            return 1;
         endfunction
 
         function bit reg_write(btl::Address addr, btl::Value val);
