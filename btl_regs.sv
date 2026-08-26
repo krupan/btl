@@ -51,10 +51,6 @@ package btl_regs;
                 indent = "  ";
             end
             this.address = address + this.offset;
-            $display("%s%s base: 0x%0x, offset: 0x%0x, address: 0x%0x", indent, name, address, this.offset, this.address);
-            if(children.size() > 0 && my_type != REG) begin
-                $display("%scalling set_base_addr(0x%0x) for each my children", indent, this.address);
-            end
             foreach(children[i]) begin
                 children[i].set_base_addr(this.address);
             end
@@ -223,14 +219,11 @@ package btl_regs;
 
         function bit addr_inside(btl::Address address);
             if(address < this.address) begin
-                $display("%s: address too low", name);
                 return 0;
             end
             if(address > (this.address + size_bytes - 1)) begin
-                $display("%s: address too high", name);
                 return 0;
             end
-            $display("%s: address just right", name);
             return 1;
         endfunction
 
@@ -257,15 +250,12 @@ package btl_regs;
                         end
                     end
                     default: begin
-                        $display("bug in btl_regs: my_type: %s, children[%0d].my_type: %s",
-                                 my_type.name, i, children[i].my_type.name);
                         assert(0);
                         return 0;
                     end
                 endcase
             end
             reserved = new("reserved", 8, address);
-            $display("no register at this address, returning reserved reg");
             the_reg = reserved;
             return 1;
         endfunction
