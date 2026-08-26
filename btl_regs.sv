@@ -25,8 +25,10 @@ package btl_regs;
         Base children[$];
         // this is so we don't have to cast to determine the type
         const ObjType my_type;
-        btl::Address base_addr;
+        // absolute address of this addrmap or register
+        btl::Address address;
         const btl::Value size_bytes;
+        // offset from address of parent addrmap
         const btl::Value offset;
 
         // const members can only be assigned to in the base class
@@ -42,12 +44,28 @@ package btl_regs;
             this.offset = offset;
         endfunction
 
+        function void set_base_addr(btl::Address address);
+            string indent = "";
+            if(my_type == FIELD) return;
+            if(my_type == REG) begin
+                indent = "  ";
+            end
+            this.address = address + this.offset;
+            $display("%s%s base: 0x%0x, offset: 0x%0x, address: 0x%0x", indent, name, address, this.offset, this.address);
+            if(children.size() > 0 && my_type != REG) begin
+                $display("%scalling set_base_addr(0x%0x) for each my children", indent, this.address);
+            end
+            foreach(children[i]) begin
+                children[i].set_base_addr(this.address);
+            end
+        endfunction
+
         virtual function void reset();
             foreach(children[i]) begin
                 children[i].reset();
             end
         endfunction
-    endclass
+    endclass : Base
 
     // named after SystemRDL things
     class Field extends Base;
@@ -57,17 +75,20 @@ package btl_regs;
         const btl::Value reset_value;
         const FieldAttrib sw_attrib;
         const FieldAttrib hw_attrib;
+        bit resetable;
         btl::Value value;
 
         function new(string name,
                      FieldAttrib sw_attrib,
                      FieldAttrib hw_attrib,
+                     bit resetable,
                      btl::Value reset_value,
                      btl::Value msb,
                      btl::Value lsb);
             super.new(name, FIELD, 0, 0);
             this.sw_attrib = sw_attrib;
             this.hw_attrib = hw_attrib;
+            this.resetable = resetable;
             this.reset_value = reset_value;
             this.lsb = lsb;
             this.msb = msb;
@@ -76,7 +97,9 @@ package btl_regs;
         endfunction
 
         function void reset();
-            value = reset_value;
+            if(resetable) begin
+                value = reset_value;
+            end
         endfunction
 
         function btl::Value read();
@@ -151,7 +174,7 @@ package btl_regs;
             return out;
         endfunction
 
-        function void write(btl::Value val);
+        function void write(btl::Value val, bit hw = 0);
             foreach(children[i]) begin
                 Field field;
                 btl::Value val_slice;
@@ -159,8 +182,17 @@ package btl_regs;
                 for(int j = 0; j < field.size_bits[31:0]; j++) begin
                     val_slice[j] = val[j + field.lsb[31:0]];
                 end
-                field.write(val_slice);
+                if(hw) begin
+                    field.hw_write(val_slice);
+                end
+                else begin
+                    field.write(val_slice);
+                end
             end
+        endfunction
+
+        function void hw_write(btl::Value val);
+            write(val, 1);
         endfunction
     endclass : Reg
 
@@ -171,7 +203,13 @@ package btl_regs;
                      btl::Value size_bytes,
                      btl::Address offset);
             super.new(name, size_bytes, offset);
-            reserved = new("reserved", btl_regs::RO, btl_regs::RO, 'h0, 63, 0);
+            reserved = new("reserved",
+                           btl_regs::RO,
+                           btl_regs::RO,
+                           1'b1,
+                           'h0,
+                           63,
+                           0);
             children.push_back(reserved);
         endfunction : new
     endclass : ReservedReg
@@ -179,17 +217,16 @@ package btl_regs;
     class AddrMap extends Base;
         function new(string name,
                      btl::Value size_bytes,
-                     btl::Address base_addr);
-            super.new(name, ADDRMAP, size_bytes, 0);
-            this.base_addr = base_addr;
+                     btl::Address offset);
+            super.new(name, ADDRMAP, size_bytes, offset);
         endfunction
 
         function bit addr_inside(btl::Address address);
-            if(address < base_addr) begin
+            if(address < this.address) begin
                 $display("%s: address too low", name);
                 return 0;
             end
-            if(address > (base_addr + size_bytes - 1)) begin
+            if(address > (this.address + size_bytes - 1)) begin
                 $display("%s: address too high", name);
                 return 0;
             end
@@ -197,25 +234,25 @@ package btl_regs;
             return 1;
         endfunction
 
-        function bit get_reg_by_addr(btl::Address addr,
+        function bit get_reg_by_addr(btl::Address address,
                                      ref btl_regs::Reg the_reg);
             ReservedReg reserved;
-            if(!addr_inside(addr)) begin
+            if(!addr_inside(address)) begin
                 return 0;
             end
             foreach(children[i]) begin
                 AddrMap addrmap;
                 case(children[i].my_type)
                     REG: begin
-                        btl::Address reg_addr = base_addr + children[i].offset;
-                        if(addr == reg_addr) begin
+                        btl::Address reg_addr = children[i].address;
+                        if(address == reg_addr) begin
                             assert($cast(the_reg, children[i]));
                             return 1;
                         end
                     end
                     ADDRMAP: begin
                         assert($cast(addrmap, children[i]));
-                        if(addrmap.get_reg_by_addr(addr, the_reg)) begin
+                        if(addrmap.get_reg_by_addr(address, the_reg)) begin
                             return 1;
                         end
                     end
@@ -227,24 +264,24 @@ package btl_regs;
                     end
                 endcase
             end
-            reserved = new("reserved", 8, addr - base_addr);
+            reserved = new("reserved", 8, address);
             $display("no register at this address, returning reserved reg");
             the_reg = reserved;
             return 1;
         endfunction
 
-        function bit reg_write(btl::Address addr, btl::Value val);
+        function bit reg_write(btl::Address address, btl::Value val);
             Reg the_reg;
-            if(get_reg_by_addr(addr, the_reg)) begin
+            if(get_reg_by_addr(address, the_reg)) begin
                 the_reg.write(val);
                 return 1;
             end
             return 0;
         endfunction
 
-        function bit reg_read(btl::Address addr, output btl::Value val);
+        function bit reg_read(btl::Address address, output btl::Value val);
             Reg the_reg;
-            if(get_reg_by_addr(addr, the_reg)) begin
+            if(get_reg_by_addr(address, the_reg)) begin
                 val = the_reg.read();
                 return 1;
             end

@@ -1,5 +1,4 @@
 import os
-import sys
 
 from systemrdl import rdltypes
 from systemrdl.node import (
@@ -44,14 +43,15 @@ def hw_attr_str(field):
     return mapping[field.get_property("hw")]
 
 
-def reset_str(field):
+def reset_strs(field):
+    resetable = "1'b1"
     reset = field.get_property("reset")
     if reset is None:
-        print(
-            f"ERROR: no reset property for {field.inst_name}", file=sys.stderr
-        )
-        sys.exit(-1)
-    return f"'h{reset:x}"
+        resetable = "1'b0"
+        reset = "'h0"
+    else:
+        reset = f"'h{reset:x}"
+    return resetable, reset
 
 
 def get_addrmap_constructor_params(addrmap, offset):
@@ -80,10 +80,8 @@ def get_field_constructor_params(field):
     name = field.get_property("name")
     sw_attr = sw_attr_str(field)
     hw_attr = hw_attr_str(field)
-    reset = reset_str(field)
-    return (
-        f'"{name}", {sw_attr}, {hw_attr}, {reset}, {field.msb}, {field.lsb});'
-    )
+    resetable, reset = reset_strs(field)
+    return f'"{name}", {sw_attr}, {hw_attr}, {resetable}, {reset}, {field.msb}, {field.lsb});'
 
 
 def construct(member, level):
@@ -147,23 +145,13 @@ def get_base_class(node):
     return "btl_regs::AddrMap"
 
 
-def declare_constructor(node, level):
+def declare_constructor(level):
     output = []
-    if isinstance(node, RegNode):
-        output.append(f"{indent(level)}function new(string name,")
-        output.append(f"{indent(level)}             btl::Value size_bytes,")
-        output.append(f"{indent(level)}             btl::Address offset);")
-        level += 1
-        output.append(f"{indent(level)}super.new(name, size_bytes, offset);")
-    else:
-        output.append(
-            f"{indent(level)}function new(string name, "
-            f"btl::Value size_bytes, btl::Address base_addr);"
-        )
-        level += 1
-        output.append(
-            f"{indent(level)}super.new(name, size_bytes, base_addr);"
-        )
+    output.append(f"{indent(level)}function new(string name,")
+    output.append(f"{indent(level)}             btl::Value size_bytes,")
+    output.append(f"{indent(level)}             btl::Address offset);")
+    level += 1
+    output.append(f"{indent(level)}super.new(name, size_bytes, offset);")
     return output
 
 
@@ -179,10 +167,16 @@ def declare_btl_subclass(node, level):
         if isinstance(child, (AddrmapNode, RegfileNode, RegNode)):
             cls.extend(declare_btl_subclass(child, level))
     cls.extend(declare_class_members(class_members, level))
-    cls.extend(declare_constructor(node, level))
+    cls.extend(declare_constructor(level))
     level += 1
 
     cls.extend(construct_members(class_members, level))
+    if level == 2:
+        cls.append(
+            f"{indent(level)}// initialize addresses of all "
+            "descendants assuming a base address of 0"
+        )
+        cls.append(f"{indent(level)}this.set_base_addr(0);")
     level -= 1
     cls.append(f"{indent(level)}endfunction : new")
 
