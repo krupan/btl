@@ -3,6 +3,8 @@ package btl;
     typedef longint unsigned Value;
     typedef longint unsigned Address;
     typedef byte unsigned ByteQ[$];
+    typedef Value ValueQ[$];
+    typedef Address AddressQ[$];
     typedef string StringQ[$];
     let max(a,b) = (a > b) ? a : b;
     let min(a,b) = (a < b) ? a : b;
