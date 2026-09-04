@@ -14,10 +14,9 @@ package example_tb {
   class LowLevel extends btl.Component {
     btl::ByteQ memory
   }
-}
-package example_regs {
   class ExampleRegs extends btl_regs.AddrMap
 }
+
 class "example_top: module" as example_top
 LowLevel *-- ExampleRegs
 example_top *-- LowLevel

@@ -9,10 +9,10 @@ The code is organized into 2 packages:
 
 There is also a [[https://peakrdl.readthedocs.io/en/latest/][PeakRDL]] plugin for generating =btl_regs= code from SystemRDL.
 
-For documentation purposes there is also an example testbench that uses btl.  That is organized into 2 packages and one top-level module:
+For documentation purposes there is also an example testbench that uses btl.  That is organized into a package, a btl_regs class, and a top-level module:
 
+- example_tb :: package uses btl to model transactions and multiple layers of detail in the testbench
 - example_regs :: uses btl_regs to model some CSRs, generated from =example_regs.rdl=
-- example_tb :: uses btl to model transactions and multiple layers of detail in the testbench
 - example_top :: module that connects the registers and components into a working testbench and provides stimulus and checking using those.
 
 * Testbench Structure
@@ -22,8 +22,6 @@ The classes btl defines are for encapsulation and re-use.  Even more importantly
 In all seriousness, we just need some re-usable code that passes transactions around and stores them no matter what the transaction actually is.  There's no need to parameterize the code if you just have a very basic, generic =Transaction= type that all the functions, tasks, and containers (queues, mailboxes, associative arrays, etc.) use.  Not having parameters makes the code so much easier on the eyes and the brain.  It makes the code easy to read and understand, which makes it easy to modify and debug when needed (and code *always* needs that).  It's a win win win scenario.
 
 Here is a diagram of the btl and the example testbench using it.
-
-TODO: split into class and object diagrams, where objects are named <object name>: <class name>
 
 #+begin_src plantuml :file example/build/example_class_diagram.svg
   @startuml
@@ -43,9 +41,9 @@ TODO: split into class and object diagrams, where objects are named <object name
 #+RESULTS:
 [[file:example/build/example_object_diagram.svg]]
 
-You can see that the example testbench has several components that serve to create transactions, convert between types of transactions, and convert transactions into address or memory reads and writes.  Write about subscribers and the put calls.
+You can see that the example testbench has several components that serve to create transactions, convert between types of transactions, and convert transactions into address or memory reads and writes.  btl components "subscribe" to other components if they are interested in the transactions that component generates.  Every component has a put method that takes a transaction.  When a component generates a transaction it calls the put method of each of its subscribers to send them the transaction.
 
-The =ResponseTracker= is something every request 1and response protocol needs.  It has a queue to track missing (outstanding) responses and functions to add, compare, and remove items from that queue.
+The =ResponseTracker= is something every request and response protocol needs.  It has a queue to track missing (outstanding) responses and functions to add, compare, and remove items from that queue.
 
 In the example testbench, =HighToLow= gets high level request transactions that need to be split into multiple smaller low level request transactions.  When it does this it creates a Transaction object that is an =INCOMPLETE_RSP=.  It will contain a list of TxnLowLevel =INCOMPLETE_RSP= objects, one for each of the smaller low level requests.
 
@@ -55,40 +53,42 @@ It feels weird to bring this up, but I'm sure people will notice that btl doesn'
 
 ** User-defined Types
 
-Class and other user-defined types (typedefs, and...are there other user-defined types in SystemVerilog?) start with capital letters and use =CamelCase=.  Instances of classes and other user-defined types use =snake_case= naming.  This is the style nearly every other object oriented language does it (Python, C++, Java, etc.).  It's a lot better than having =class foo;= and then needing to append a character to the instance like =foo foo_c;=.  I know there's a long history of modules in old-skool verilog using lowercase names for the module definition and then some tortured version of that module name for module instances, but we don't need to do that with classes.  Other language communities have already figure that one out for us.
+Class and other user-defined types (typedefs, enums, etc.) start with capital letters and use =CamelCase=.  Instances of classes and other user-defined types use =snake_case= naming.  This is the style nearly every other object oriented language uses (Python, C++, Java, etc.).  It's a lot better than having =class foo;= and then needing to append a character to the instance like =foo foo_c;=.  I know there's a long history of modules in old-skool verilog using lowercase names for the module definition and then some tortured version of that module name for module instances, but we don't need to do that with classes.  Other language communities have already figure that one out for us.
 
 ** Packages
 
 btl does not append =_pkg= to the names of packages.  It also does not ever do =import <pkg_name>::*;=.  I strongly recommend you do the same with your SystemVerilog code.  Like with classes, packages exist in other languages, just with different names sometimes.  C++ has namespaces, Python and Perl have modules (not to be confused with verilog modules), Java has packages, etc.  None of those language communities encourage naming those with suffixes to indicate what they are and both frown upon (except in certain cases) doing the equivalent of =import <pkg_name>::*;=.  
 
-The =_pkg= suffix is just not necessary.  In SystemVerilog there is one place where a package name is used, that's preceding a =::=.  There is only one other thing in the language that can precede a =::= and that's a class name.  In both cases, the package name or the class name are doing the same thing, providing a scope, so it doesn't really matter which one it is.  Despite that, we capitalize class names and leave package names lower case which easy to tell which is which when when you see =btl::Field= or =Foo::bar= (no btl classes have class variables, so I don't have an example to use there).
+The =_pkg= suffix is just not necessary.  In SystemVerilog there is one place where a package name is used, that's preceding a =::=.  There is only one other thing in the language that can precede a =::= and that's a class name.  Since we capitalize class names and leave package names lower case it is easy to tell which is which when you see =btl_regs::Field= or =Foo::bar=.
 
-Importing everything from one package (scope) into another scope using =import <pkg_name>::*;= totally defeats the point of having a package.  Packages allow you to have two variables with the same name as long as they are in different packages.  Importing =*= breaks that.  If the UVM followed the style of NOT importing =*=, the package would be =uvm= and nothing inside the =uvm= package would need the =uvm_= prefix.  Instead of, for example, =uvm_driver= you would have =uvm::driver=, or =uvm::sequence_item= instead of =uvm_sequence_item=, or well, you get it.  And actually it would be =uvm::Driver= and =uvm::SequenceItem= which is even more clear (=Driver= and =SequenceItem= are obviously types).
+SystemVerilog allows your code to have two variables with the same name as long as they are in different scopes (such as packages, modules, classes, functions, etc.).  A =package= is a language construct that has one job: provide a global named scope.  Importing everything from one package (scope) into another scope using =import <pkg_name>::*;= totally defeats the point of having a package!
+
+If the UVM followed and recommended the style of NOT importing =*=, the package would be named =uvm= and nothing inside the =uvm= package would need the =uvm_= prefix.  Instead of, for example, =uvm_driver= you would have =uvm::driver=, or instead of =uvm_sequence_item= it would be =uvm::sequence_item= (actually, following btl standards, it would be =uvm::Driver= and =uvm::SequenceItem= which makes it clear that =Driver= and =SequenceItem= are types).
 
 ** Built-in Types
 
 The other place that theSystemVerilog type system is annoying in testbench code is with basic address and data types.  btl uses two main types for addresses and data in transactions.  They are:
 
-- 64-bit unsigned integer, aka:
+- 64-bit unsigned integer, with two names for adding some clarity if you choose:
   - =typedef longint unsigned Addr=
   - =typedef longint unsigned Value=
 - queue of bytes, aka, =typedef byte unsigned ByteQ[$];=
 
-By simply using the largest integer type there is we don't have to parameterize any of our classes, tasks, or functions (which is good because you can't have a parameterized task or function in SystemVerilog).  The =btl_regs= classes include a =size_bits= member to specify the actual size of the value they represent.
+By simply using the largest integer type that SystemVerilog has we don't have to parameterize any of our classes, tasks, or functions (which is good because you can't have a parameterized task or function in SystemVerilog).  I haven't come across a need for signed values or addresses in my testbenches yet, but we could add typedefs for those too if needed.  =btl_regs::Field= instances include a =size_bits= member to specify the actual size of the value they represent.
 
-For variable sized data payloads we use queues of bytes because queues are flexible and have some nice features like =size()=, =exists()=, =push_back()=, =pop_front()=, =delete()=, easy assignment, easy iteration, easy concatenation, easy slicing using variables (amazing!), etc.
+For variable sized data payloads we use queues of bytes because queues are flexible and have some nice features like =size()=, =exists()=, =push_back()=, =pop_front()=, =delete()=, easy assignment, easy iteration, easy concatenation, easy slicing using variables, etc.
 
 To convert between those two types btl supplies functions =byteq_to_value= and =value_to_byteq=.  Hopefully those are self evident what they do and how they work.
 
 ** More Than One Class Per File 
 
-I don't know how many people do this, but I've seen suggestions that you should only have one class per file (even in other languages, not just SystemVerilog).  Classes don't have to  (and really shouldn't) be big things with tons of lines of code.  You wouldn't put one struct, enum, or typedef per file.  Classes don't have to be one per file either.  That's too much cognitive load.  btl puts classes in their own file (that's added to a package with a =`include=) when they grow too big, otherwise they can all be in the same file as the package they are a part of.
+I don't know how many people do this, but I've seen suggestions that you should only have one class per file (even in other languages, not just SystemVerilog).  Classes don't have to  (and really shouldn't) be big things with tons of lines of code.  You wouldn't put one struct, enum, or typedef per file.  Classes don't have to be one per file either.  btl puts classes in their own file (that's added to a package with a =`include=) when they grow too big, otherwise they can all be in the same file as the package they are a part of.
 
-I'm not really a fan of one-module-per file either but testbenches don't usually define modules so we won't argue about that.  For packages I don't ever feel like I want more than one per file, but I don't know, maybe it would be useful at some point.
+I'm not really a fan of a strict one-module-per file policy either but testbenches don't usually define modules so we won't argue about that.  For packages I don't ever feel like I want more than one per file, but I don't know, maybe it would be useful at some point to have multiple small packages in a single file.
 
 ** File Naming
 
-Files that are included into other files (like the files for big classes discussed above) are named with a =.svh= extension.  They do not have include guards because they should only ever be included in one file and include guards would make it harder to detect if someone does that.  These are not C/C++ header files. 
+Files that are included into other files (like the files for big classes discussed above) are named with a =.svh= extension.  They do not have include guards because they should only ever be included in one file (these are not C/C++ header files).  Include guards would make it difficult to detect if someone violates that.
 
 Files that contain top-level things like packages or modules should not be included in other files and should always have the =.sv= extension.
 
