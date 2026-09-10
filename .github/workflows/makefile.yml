@@ -22,7 +22,7 @@ jobs:
       
     - name: Build and sim
       run: |
-        direnv add .
+        direnv allow .
         cd example
         direnv exec ../ make
 
