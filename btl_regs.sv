@@ -69,8 +69,8 @@ package btl_regs;
         const btl::Value msb;
         const btl::Value size_bits;
         const btl::Value reset_value;
-        const FieldAttrib sw_attrib;
-        const FieldAttrib hw_attrib;
+        FieldAttrib sw_attrib;
+        FieldAttrib hw_attrib;
         bit resetable;
         btl::Value value;
 
