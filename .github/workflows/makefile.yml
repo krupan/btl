@@ -1,0 +1,34 @@
+name: Makefile CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install packages
+      run: sudo apt-get -yq install plantuml direnv ccache make gcc g++ swig python3-dev
+      
+    - name: Install msd suite of tools
+      run: |
+        wget -nv https://msd.llc/releases/msd_dvs-v3.0.5.tar.zst
+        tar xvf msd_dvs-v3.0.5.tar.zst
+        mkdir -p /opt/msd/
+        cd msd_dvs-installer && ./install ubuntu_24.04
+
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      
+    - name: Build and sim
+      run: |
+        direnv allow .
+        cd example
+        direnv exec ../ make
