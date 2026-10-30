@@ -1,15 +1,64 @@
 import os
 
-from systemrdl import rdltypes
-from systemrdl.node import (
-    AddrmapNode,
-    FieldNode,
-    RegfileNode,
-    RegNode,
-    RootNode,
-)
+from systemrdl import RDLListener, RDLWalker, rdltypes
+from systemrdl.node import (AddrmapNode, FieldNode, RegfileNode, RegNode,
+                            RootNode)
+# Add this to your imports at the top
+from systemrdl.rdltypes.user_enum import is_user_enum
 
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
+
+
+class EnumGatherer(RDLListener):
+    def __init__(self):
+        self.enums = set()
+
+    def enter_Field(self, node):
+        enum_type = node.get_property("encode")
+        # Check if the field is bound to a SystemRDL UserEnum
+        if enum_type is not None and is_user_enum(enum_type):
+            self.enums.add(enum_type)
+
+
+def generate_sv_enums(top_node):
+    gatherer = EnumGatherer()
+    walker = RDLWalker(unroll=True)
+    walker.walk(top_node, gatherer)
+
+    sv_lines = []
+
+    # Sort enums deterministically
+    sorted_enums = sorted(
+        gatherer.enums, key=lambda e: getattr(e, "type_name", e.__name__)
+    )
+
+    for enum_type in sorted_enums:
+        enum_name = getattr(enum_type, "type_name", enum_type.__name__)
+        sv_lines.append(f"typedef enum logic [31:0] {{")
+
+        member_lines = []
+        member_items = list(enum_type.members.items())
+
+        for idx, (name, member) in enumerate(member_items):
+            desc = member.rdl_desc
+
+            # Determine if this is the last element (no comma needed)
+            comma = "," if idx < len(member_items) - 1 else ""
+            comment = f" // {desc}" if desc else ""
+
+            member_name = f"{enum_name.upper()}_{name}"
+            val = member.value
+
+            # Place the comma BEFORE the comment
+            member_lines.append(
+                f"    {member_name} = 'h{val:X}{comma}{comment}"
+            )
+
+        # Use a standard newline join since commas are handled inline now
+        sv_lines.append("\n".join(member_lines))
+        sv_lines.append(f"}} {enum_name};\n\n")
+
+    return sv_lines
 
 
 def indent(level):
@@ -45,13 +94,32 @@ def hw_attr_str(field):
 
 def reset_strs(field):
     resetable = "1'b1"
-    reset = field.get_property("reset")
-    if reset is None:
-        resetable = "1'b0"
-        reset = "'h0"
-    else:
-        reset = f"'h{reset:x}"
-    return resetable, reset
+    reset_val = field.get_property("reset")
+
+    if reset_val is None:
+        return "1'b0", "'h0"
+
+    # Check if this field is bound to an enum
+    enum_type = field.get_property("encode")
+    if enum_type is not None and is_user_enum(enum_type):
+        enum_name = getattr(enum_type, "type_name", enum_type.__name__)
+
+        # SystemRDL explicit enum reset (reset = pcie_cap_id_e::MSIX;)
+        if is_user_enum(type(reset_val)):
+            return resetable, f"{enum_name.upper()}_{reset_val.name}"
+
+        # SystemRDL integer reset (reset = 8'h11; encode = pcie_cap_id_e;)
+        # We can auto-resolve the integer back to the correct enum string
+        if isinstance(reset_val, int):
+            for name, member in enum_type.members.items():
+                if member.value == reset_val:
+                    return resetable, f"{enum_name.upper()}_{name}"
+
+    # Fallback for standard fields without enums
+    if isinstance(reset_val, int):
+        return resetable, f"'h{reset_val:x}"
+
+    return resetable, str(reset_val)
 
 
 def get_addrmap_constructor_params(addrmap, offset):
@@ -210,6 +278,11 @@ def export(node, path):
             f"// from {source_file}\n\n",
         ]
     ]
+
+    enum_sv_code = generate_sv_enums(node)
+    if enum_sv_code:
+        classes.append(enum_sv_code)
+
     classes.append(declare_btl_subclass(node, 0))
     if os.path.isdir(path):
         path += f"/{node.inst_name}.svh"
