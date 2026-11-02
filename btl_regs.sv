@@ -29,7 +29,7 @@ package btl_regs;
         btl::Address address;
         const btl::Value size_bytes;
         // offset from address of parent addrmap
-        const btl::Value offset;
+        btl::Value offset;
 
         // const members can only be assigned to in the base class
         // constructor, according to dave_59:
